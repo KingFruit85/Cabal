@@ -48,6 +48,8 @@ export default class ChatServer {
       ttl: DayInMs,
     });
     this.startCabalExpirationCheck();
+    Deno.addSignalListener("SIGINT", () => this.cleanup());
+    Deno.addSignalListener("SIGTERM", () => this.cleanup());
   }
 
   private startCabalExpirationCheck() {
@@ -68,34 +70,58 @@ export default class ChatServer {
   }
 
   public async handleConnection(ctx: Context) {
-    const socket = (await ctx.upgrade()) as WebSocketWithMetadata;
-    const username = ctx.request.url.searchParams.get("username") as string;
+    try {
+      const socket = (await ctx.upgrade()) as WebSocketWithMetadata;
+      const username = ctx.request.url.searchParams.get("username") as string;
 
-    if (this.connectedClients.has(username)) {
-      socket.close(1008, `Username ${username} is already taken`);
-      return;
+      if (this.connectedClients.has(username)) {
+        socket.close(1008, `Username ${username} is already taken`);
+        return;
+      }
+      socket.username = username;
+      socket.currentRoom = "general"; // Default cabal
+
+      socket.onopen = async () => {
+        try {
+          console.log(this.cabals);
+          this.connectedClients.set(username, socket);
+
+          await new Promise((resolve) => setTimeout(resolve, 100));
+
+          await this.joinCabal(socket, "general", true);
+
+          this.broadcastCabalList();
+          this.broadcastUserList();
+          console.log(`New client connected: ${username}`);
+          console.log("Current room:", socket.currentRoom);
+        } catch (error) {
+          console.error("Error in onopen handler:", error);
+        }
+      };
+
+      socket.onerror = (error) => {
+        console.error(`WebSocket error for ${username}:`, error);
+      };
+
+      socket.onclose = () => {
+        try {
+          this.clientDisconnected(socket.username);
+        } catch (error) {
+          console.error("Error in onclose handler:", error);
+        }
+      };
+
+      socket.onmessage = (m) => {
+        try {
+          this.handleMessage(socket, m);
+        } catch (error) {
+          console.error("Error in onmessage handler:", error);
+        }
+      };
+    } catch (error) {
+      console.error("Error in handleConnection:", error);
+      throw error;
     }
-    socket.username = username;
-    socket.currentRoom = "general"; // Default cabal
-
-    socket.onopen = () => {
-      console.log(this.cabals);
-      // Add user to connected clients first
-      this.connectedClients.set(username, socket);
-
-      // Then join them to general room
-      this.joinCabal(socket, "general", true);
-
-      // Broadcast updates
-      this.broadcastCabalList();
-      this.broadcastUserList();
-
-      console.log(`New client connected: ${username}`);
-      console.log("Current room:", socket.currentRoom);
-    };
-
-    socket.onclose = () => this.clientDisconnected(socket.username);
-    socket.onmessage = (m) => this.handleMessage(socket, m);
   }
 
   private handleMessage(socket: WebSocketWithMetadata, message: any) {
@@ -158,25 +184,35 @@ export default class ChatServer {
     cabal.members.set(socket.username, new Date());
     socket.currentRoom = cabalName;
 
-    // Send chat history
-    const history = await this.getCabalHistory(cabalName);
-    socket.send(
-      JSON.stringify({
-        event: "cabal-history",
+    try {
+      // Send chat history only if socket is ready
+      if (socket.readyState === WebSocket.OPEN) {
+        const history = await this.getCabalHistory(cabalName);
+        socket.send(
+          JSON.stringify({
+            event: "cabal-history",
+            cabalName,
+            messages: history,
+          })
+        );
+      } else {
+        console.log(`Socket not ready for ${socket.username} in ${cabalName}`);
+      }
+
+      // Notify about join
+      this.broadcastToCabal(cabalName, {
+        event: "cabal-joined",
+        username: socket.username,
         cabalName,
-        messages: history,
-      })
-    );
+      });
 
-    // Notify about join
-    this.broadcastToCabal(cabalName, {
-      event: "cabal-joined",
-      username: socket.username,
-      cabalName,
-    });
-
-    this.broadcastCabalMembers(cabalName);
-    this.broadcastCabalList();
+      this.broadcastCabalMembers(cabalName);
+      this.broadcastCabalList();
+    } catch (error) {
+      console.error(`Error in joinCabal for ${socket.username}:`, error);
+      // Remove member if join failed
+      cabal.members.delete(socket.username);
+    }
   }
 
   private leaveCabal(socket: WebSocketWithMetadata, cabalName: string) {
@@ -276,11 +312,17 @@ export default class ChatServer {
     const cabal = this.cabals.get(cabalName);
     if (!cabal) return;
 
-    // Send to all connected clients who have this conversation open
-    // Instead of checking cabal membership
     const messageString = JSON.stringify(message);
     for (const client of this.connectedClients.values()) {
-      client.send(messageString);
+      try {
+        if (client.readyState === WebSocket.OPEN) {
+          client.send(messageString);
+        } else {
+          console.log(`Skipping client ${client.username} - not ready`);
+        }
+      } catch (error) {
+        console.error(`Error sending to client ${client.username}:`, error);
+      }
     }
   }
 
@@ -323,5 +365,20 @@ export default class ChatServer {
       console.log(`No history found for ${cabalName}`);
       return [];
     }
+  }
+
+  private cleanup() {
+    console.log("Cleaning up server...");
+    for (const client of this.connectedClients.values()) {
+      try {
+        if (client.readyState === WebSocket.OPEN) {
+          client.close(1000, "Server shutting down");
+        }
+      } catch (error) {
+        console.error("Error closing client:", error);
+      }
+    }
+    this.connectedClients.clear();
+    this.cabals.clear();
   }
 }

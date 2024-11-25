@@ -18,6 +18,7 @@
 
   --color-text: antiquewhite; /* Main text color */
   --color-text-muted: rgba(250, 235, 215, 0.7); /* Muted text */
+  --color-primary-dark: rgb(183, 48, 145);
 
   /* Typography */
   --font-primary: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
@@ -272,7 +273,7 @@ aside li {
   display: flex;
   flex-direction: column;
   gap: var(--spacing-md);
-  background: var(--color-bg-light);
+  background: var(--color-bg-dark);
 }
 
 .message {
@@ -282,6 +283,28 @@ aside li {
   word-wrap: break-word;
   position: relative;
   margin: var(--spacing-sm) 0;
+  box-shadow: 12px 12px 2px 1px var(--color-bg-dark);
+}
+
+.username {
+  font-weight: 600;
+  color: var(--color-primary);
+  margin-bottom: var(--spacing-xs);
+}
+
+.username::first-letter {
+  color: rgb(106, 30, 85); /* Or any darker color you prefer */
+}
+
+/* Optional: Add a smooth transition */
+.username {
+  transition: color 0.2s ease;
+}
+
+.timestamp {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--spacing-xs);
 }
 
 .message.sent {

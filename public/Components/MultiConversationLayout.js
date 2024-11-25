@@ -4,6 +4,7 @@ export class MultiConversationLayout {
   constructor(socket) {
     this.socket = socket;
     this.activeConversations = new Map();
+    this.windowOrder = []; // Keep track of window order
     this.container = document.getElementById("multi-conversation-layout");
     this.container.innerHTML = ""; // Clear any existing content
     this.maxConversations = 4;
@@ -75,49 +76,46 @@ export class MultiConversationLayout {
   }
 
   addConversation(cabalName) {
-    console.log("Adding conversation:", cabalName);
-    console.log("Current active conversations:", this.activeConversations.size);
-    console.log("Container children:", this.container.children.length);
-    if (!this.activeConversations.has(cabalName)) {
-      const conversationWindow = new ConversationWindow(
-        cabalName,
-        (name) => this.removeConversation(name),
-        (name) => {
-          console.log("Activation callback triggered for:", name);
-          this.setActiveConversation(name);
-        }
-      );
-
-      this.activeConversations.set(cabalName, conversationWindow);
-      // Just append the new window
-      this.container.appendChild(conversationWindow.element);
-
-      // Make sure no other windows are active
-      this.activeConversations.forEach((conv, name) => {
-        if (name !== cabalName) {
-          conv.element.classList.remove("active");
-        }
-      });
-
-      console.log(
-        "After adding window - Container children:",
-        this.container.children.length
-      );
-      console.log(
-        "Active conversations map:",
-        Array.from(this.activeConversations.keys())
-      );
-
-      this.updateLayout();
-
-      // Request to join the cabal
-      this.socket.send(
-        JSON.stringify({
-          event: "join-cabal",
-          cabalName: cabalName,
-        })
-      );
+    // If window already exists, just activate it
+    if (this.activeConversations.has(cabalName)) {
+      this.setActiveConversation(cabalName);
+      return;
     }
+
+    // If we're at max capacity, remove the oldest window
+    if (this.activeConversations.size >= this.maxConversations) {
+      const oldestCabal = this.windowOrder[0];
+      this.removeConversation(oldestCabal);
+      this.windowOrder = this.windowOrder.slice(1); // Remove oldest from order list
+    }
+
+    const conversationWindow = new ConversationWindow(
+      cabalName,
+      (name) => this.removeConversation(name),
+      (name) => {
+        console.log("Activation callback triggered for:", name);
+        this.setActiveConversation(name);
+      }
+    );
+
+    this.activeConversations.set(cabalName, conversationWindow);
+    this.windowOrder.push(cabalName); // Add to order list
+    this.container.insertBefore(
+      conversationWindow.element,
+      this.container.lastChild
+    );
+    this.updateLayout();
+
+    // Send join event to server
+    this.socket.send(
+      JSON.stringify({
+        event: "join-cabal",
+        cabalName: cabalName,
+      })
+    );
+
+    // Set as active conversation
+    this.setActiveConversation(cabalName);
   }
 
   addMessageHistory(cabalName, messages) {
@@ -137,6 +135,7 @@ export class MultiConversationLayout {
     if (conversation) {
       conversation.element.remove();
       this.activeConversations.delete(cabalName);
+      this.windowOrder = this.windowOrder.filter((name) => name !== cabalName);
 
       if (this.activeConversation === cabalName) {
         console.log(
@@ -149,7 +148,6 @@ export class MultiConversationLayout {
         } else {
           console.log("No conversations left, clearing active conversation");
           this.setActiveConversation(null);
-          this.inputArea.style.display = "none"; // Hide input when last window closes
         }
       }
 
