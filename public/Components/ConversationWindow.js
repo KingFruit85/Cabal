@@ -1,5 +1,5 @@
 export class ConversationWindow {
-  constructor(cabalName, onClose, socket, onActivate, currentUsername) {
+  constructor(cabalName, onClose, onActivate, socket, currentUsername) {
     this.cabalName = cabalName;
     this.onClose = onClose;
     this.onActivate = onActivate;
