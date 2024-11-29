@@ -1,17 +1,15 @@
 import { MultiConversationLayout } from "./Components/MultiConversationLayout.js";
 
-const myUsername = prompt("Please enter your name") || "Anonymous";
-const url = new URL(`./start_web_socket?username=${myUsername}`, location.href);
+const username = prompt("Please enter your name") || "Anonymous";
+const url = new URL(`./start_web_socket?username=${username}`, location.href);
 url.protocol = url.protocol.replace("http", "ws");
 export const socket = new WebSocket(url);
 
 // Create the layout manager
-const conversationLayout = new MultiConversationLayout(socket);
-console.log(socket);
+const conversationLayout = new MultiConversationLayout(socket, username);
 
 socket.onmessage = (event) => {
   const data = JSON.parse(event.data);
-
   switch (data.event) {
     case "update-users":
       updateUserList(data.usernames);
@@ -20,14 +18,31 @@ socket.onmessage = (event) => {
       updateCabalList(data.cabals);
       break;
     case "send-message":
-      conversationLayout.addMessage(
-        data.cabalName,
-        data.username,
-        data.message
-      );
+      conversationLayout.addMessage(data.roomName, data.username, data.message);
       break;
     case "cabal-history":
       conversationLayout.addMessageHistory(data.cabalName, data.messages);
+      break;
+    case "edit-message": {
+      const conversation = conversationLayout.activeConversations.get(
+        data.cabalName
+      );
+      if (conversation) {
+        conversation.handleMessageUpdate(data.id, data.message);
+      }
+      break;
+    }
+    case "delete-message": {
+      const conv = conversationLayout.activeConversations.get(data.cabalName);
+      if (conv) {
+        conv.handleMessageDelete(data.id);
+      }
+      break;
+    }
+    case "error":
+      console.error("Server error:", data.message);
+      // Optionally show error to user
+      alert(data.message);
       break;
   }
 };

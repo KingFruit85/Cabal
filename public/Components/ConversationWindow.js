@@ -1,8 +1,10 @@
 export class ConversationWindow {
-  constructor(cabalName, onClose, onActivate) {
+  constructor(cabalName, onClose, socket, onActivate, currentUsername) {
     this.cabalName = cabalName;
     this.onClose = onClose;
     this.onActivate = onActivate;
+    this.socket = socket;
+    this.currentUsername = currentUsername;
     this.element = this.createElement();
     this.messageContainer = this.element.querySelector(".messages");
     this.unreadCount = 0;
@@ -31,7 +33,6 @@ export class ConversationWindow {
   setupEventListeners() {
     // Handle window clicks
     this.element.addEventListener("click", (e) => {
-      console.log("Conversation window clicked:", this.cabalName);
       // Don't activate if clicking close button
       if (!e.target.closest(".close-btn")) {
         this.clearUnread();
@@ -47,57 +48,99 @@ export class ConversationWindow {
     });
   }
 
-  addMessage(username, message) {
-    // Check if we need to add a time separator
-    const now = new Date();
-    const lastMessage = this.messageContainer.lastElementChild;
-
-    if (lastMessage) {
-      const lastTime = lastMessage.dataset.timestamp;
-      const timeDiff = now - new Date(lastTime);
-
-      // Add separator if more than 5 minutes between messages
-      if (timeDiff > 5 * 60 * 1000) {
-        const separator = document.createElement("div");
-        separator.className = "time-separator";
-        separator.textContent = now.toLocaleTimeString([], {
-          hour: "2-digit",
-          minute: "2-digit",
-        });
-        this.messageContainer.appendChild(separator);
-      }
-    }
-
+  addMessage(messageData) {
     const messageDiv = document.createElement("div");
-    const isCurrentUser = username === this.getCurrentUsername();
+    messageDiv.className = "message";
+    messageDiv.dataset.messageId = messageData.id; // Store message ID in DOM
 
-    messageDiv.className = `message ${isCurrentUser ? "sent" : "received"}`;
-    messageDiv.dataset.timestamp = now.toISOString();
+    // Format the timestamp
+    let timeString = "Unknown time";
+    const timestamp = new Date(messageData.timestamp);
+    timeString = timestamp.toLocaleTimeString();
 
     messageDiv.innerHTML = `
-        <div class="message-header">
-            <span class="username">${this.escapeHtml(username)}</span>
-            <span class="timestamp">${now.toLocaleTimeString([], {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}</span>
-        </div>
-        <div class="content">${this.escapeHtml(message)}</div>
-    `;
+            <div class="message-header">
+                <span class="username">${this.escapeHtml(
+                  messageData.username
+                )}</span>
+                <span class="timestamp">${timeString}</span>
+                ${
+                  messageData.edited
+                    ? '<span class="edited">(edited)</span>'
+                    : ""
+                }
+            </div>
+            <div class="content">
+                ${this.escapeHtml(messageData.message)}
+            </div>
+        `;
 
     this.messageContainer.appendChild(messageDiv);
     this.scrollToBottom();
+  }
 
-    if (!this.element.classList.contains("active")) {
-      this.unreadCount++;
-      this.updateUnreadCount();
+  addMessageHistory(messages) {
+    this.clearMessages();
+    messages.forEach((msg) => this.addMessage(msg));
+  }
+
+  saveEdit(messageId, newText) {
+    this.socket.send(
+      JSON.stringify({
+        event: "edit-message",
+        id: messageId,
+        message: newText,
+      })
+    );
+  }
+
+  deleteMessage(messageId) {
+    if (confirm("Are you sure you want to delete this message?")) {
+      this.socket.send(
+        JSON.stringify({
+          event: "delete-message",
+          id: messageId,
+        })
+      );
     }
   }
 
-  getCurrentUsername() {
-    // You'll need to pass the current username to the ConversationWindow
-    // or access it from a global variable/state
-    return globalThis.myUsername; // This should match the username you set when connecting
+  handleMessageUpdate(id, newMessage) {
+    const messageDiv = this.messageContainer.querySelector(
+      `[data-message-id="${id}"]`
+    );
+    if (messageDiv) {
+      const content = messageDiv.querySelector(".content");
+      content.textContent = newMessage;
+
+      if (!messageDiv.querySelector(".edited")) {
+        messageDiv
+          .querySelector(".message-header")
+          .insertAdjacentHTML(
+            "beforeend",
+            '<span class="edited">(edited)</span>'
+          );
+      }
+    }
+  }
+
+  handleMessageDelete(id) {
+    const messageDiv = this.messageContainer.querySelector(
+      `[data-message-id="${id}"]`
+    );
+    if (messageDiv) {
+      const content = messageDiv.querySelector(".content");
+      content.textContent = "This message was deleted";
+      content.classList.add("deleted");
+
+      // Remove edit/delete buttons
+      const actions = messageDiv.querySelector(".message-actions");
+      if (actions) actions.remove();
+    }
+  }
+
+  isOwnMessage(username) {
+    return username === this.currentUsername;
   }
 
   updateUnreadCount() {
@@ -121,6 +164,7 @@ export class ConversationWindow {
   }
 
   escapeHtml(unsafe) {
+    if (!unsafe) return ""; // Return empty string if input is undefined/null
     return unsafe
       .replace(/&/g, "&amp;")
       .replace(/</g, "&lt;")

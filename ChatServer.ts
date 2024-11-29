@@ -1,6 +1,7 @@
 import { Context } from "@oak/oak";
 import { DayInMs } from "./Consts.ts";
 import { Cabal } from "./Types/Rooms.ts";
+import { Message } from "./Types/Mesages.ts";
 
 type WebSocketWithMetadata = WebSocket & {
   username: string;
@@ -14,8 +15,28 @@ type AppEvent = {
 
 export default class ChatServer {
   private connectedClients = new Map<string, WebSocketWithMetadata>();
-
   private cabals = new Map<string, Cabal>();
+
+  private generateMessageId(): string {
+    return crypto.randomUUID();
+  }
+
+  // Store a message
+  private async storeMessage(message: Message) {
+    const kv = await Deno.openKv();
+    const key = ["messages", message.roomName, message.timestamp, message.id];
+    await kv.set(key, message);
+
+    // Store a reference by ID for quick lookups
+    await kv.set(["message_by_id", message.id], message);
+  }
+
+  // Get a specific message by ID
+  private async getMessage(id: string): Promise<Message | null> {
+    const kv = await Deno.openKv();
+    const result = await kv.get<Message>(["message_by_id", id]);
+    return result.value;
+  }
 
   constructor() {
     this.cabals = new Map<string, Cabal>();
@@ -59,11 +80,9 @@ export default class ChatServer {
       const now = Date.now();
       for (const [name, cabal] of this.cabals) {
         if (now - cabal.createdAt >= cabal.ttl) {
-          console.log("checking for expired cabals");
           this.cabals.delete(name);
           this.broadcastCabalList();
           Deno.remove(`./ChatLogs/${name}`);
-          console.log(`Cabal expired and removed: ${name}`);
         }
       }
     }, checkInterval);
@@ -83,7 +102,6 @@ export default class ChatServer {
 
       socket.onopen = async () => {
         try {
-          console.log(this.cabals);
           this.connectedClients.set(username, socket);
 
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -92,8 +110,6 @@ export default class ChatServer {
 
           this.broadcastCabalList();
           this.broadcastUserList();
-          console.log(`New client connected: ${username}`);
-          console.log("Current room:", socket.currentRoom);
         } catch (error) {
           console.error("Error in onopen handler:", error);
         }
@@ -124,10 +140,8 @@ export default class ChatServer {
     }
   }
 
-  private handleMessage(socket: WebSocketWithMetadata, message: any) {
-    const data = JSON.parse(message.data);
-    console.log("Received message:", data);
-    console.log("Current socket room:", socket.currentRoom);
+  private async handleMessage(socket: WebSocketWithMetadata, rawMessage: any) {
+    const data = JSON.parse(rawMessage.data);
 
     switch (data.event) {
       case "send-message":
@@ -138,6 +152,35 @@ export default class ChatServer {
           data.message
         );
         break;
+      case "edit-message": {
+        const editResult = await this.editMessage(
+          data.id,
+          data.message,
+          socket.username
+        );
+        if (editResult.error) {
+          socket.send(
+            JSON.stringify({
+              event: "error",
+              message: editResult.error,
+            })
+          );
+        }
+        break;
+      }
+      case "delete-message": {
+        const deleteResult = await this.deleteMessage(data.id, socket.username);
+        if (deleteResult.error) {
+          socket.send(
+            JSON.stringify({
+              event: "error",
+              message: deleteResult.error,
+            })
+          );
+        }
+        break;
+      }
+
       case "create-cabal":
         this.createCabal(data.name, data.description);
         break;
@@ -164,8 +207,6 @@ export default class ChatServer {
     });
 
     this.broadcastCabalList();
-
-    console.log(`New cabal created: ${name}`);
   }
 
   private async joinCabal(
@@ -173,10 +214,8 @@ export default class ChatServer {
     cabalName: string,
     initialJoin: boolean = false
   ) {
-    console.log(`Joining cabal: ${cabalName} for user: ${socket.username}`);
     const cabal = this.cabals.get(cabalName);
     if (!cabal) {
-      console.log(`Cabal ${cabalName} not found`);
       return;
     }
 
@@ -196,7 +235,9 @@ export default class ChatServer {
           })
         );
       } else {
-        console.log(`Socket not ready for ${socket.username} in ${cabalName}`);
+        console.error(
+          `Socket not ready for ${socket.username} in ${cabalName}`
+        );
       }
 
       // Notify about join
@@ -238,29 +279,79 @@ export default class ChatServer {
     cabalName: string,
     message: string
   ) {
-    console.log(
-      `Sending message to cabal: ${cabalName} from user: ${username}`
-    );
+    const timestamp = Date.now(); // Current timestamp in milliseconds
 
-    const cabal = this.cabals.get(cabalName);
-    if (!cabal) {
-      console.log(`Cabal ${cabalName} not found`);
-      return;
-    }
-
-    const messageEvent = {
-      event: "send-message",
+    const messageData: Message = {
+      id: this.generateMessageId(),
       username,
       message,
-      cabalName,
-      timestamp: Date.now(),
+      timestamp,
+      roomName: cabalName,
     };
 
-    // Store message first
-    await this.storeCabalMessage(cabalName, messageEvent);
+    await this.storeMessage(messageData);
 
-    // Then broadcast
-    this.broadcastToCabal(cabalName, messageEvent);
+    this.broadcastToCabal(cabalName, {
+      event: "send-message",
+      ...messageData,
+    });
+  }
+
+  private async editMessage(id: string, newMessage: string, username: string) {
+    const message = await this.getMessage(id);
+
+    if (!message) {
+      return { error: "Message not found" };
+    }
+
+    if (message.username !== username) {
+      return { error: "Not authorized to edit this message" };
+    }
+
+    const updatedMessage: Message = {
+      ...message,
+      message: newMessage,
+      edited: Date.now(),
+    };
+
+    await this.storeMessage(updatedMessage);
+
+    // Broadcast the edit
+    this.broadcastToCabal(message.roomName, {
+      event: "edit-message",
+      id,
+      message: newMessage,
+    });
+
+    return { success: true };
+  }
+
+  private async deleteMessage(id: string, username: string) {
+    const message = await this.getMessage(id);
+
+    if (!message) {
+      return { error: "Message not found" };
+    }
+
+    if (message.username !== username) {
+      return { error: "Not authorized to delete this message" };
+    }
+
+    const updatedMessage: Message = {
+      ...message,
+      deleted: true,
+    };
+
+    // Update storage
+    await this.storeMessage(updatedMessage);
+
+    // Broadcast the deletion
+    this.broadcastToCabal(message.roomName, {
+      event: "delete-message",
+      id,
+    });
+
+    return { success: true };
   }
 
   private clientDisconnected(username: string) {
@@ -283,8 +374,6 @@ export default class ChatServer {
       })
     );
 
-    console.log(cabalList);
-
     this.broadcast({
       event: "update-cabals",
       cabals: cabalList,
@@ -292,7 +381,6 @@ export default class ChatServer {
   }
 
   private broadcastCabalMembers(cabalName: string) {
-    console.log("Broadcasting cabal members for " + cabalName);
     const cabal = this.cabals.get(cabalName);
     if (!cabal) return;
 
@@ -318,7 +406,7 @@ export default class ChatServer {
         if (client.readyState === WebSocket.OPEN) {
           client.send(messageString);
         } else {
-          console.log(`Skipping client ${client.username} - not ready`);
+          console.warn(`Skipping client ${client.username} - not ready`);
         }
       } catch (error) {
         console.error(`Error sending to client ${client.username}:`, error);
@@ -333,42 +421,34 @@ export default class ChatServer {
       if (client.readyState === WebSocket.OPEN) {
         client.send(messageString);
       } else {
-        console.log(`Skipping client ${client.username} - not ready`);
+        console.warn(`Skipping client ${client.username} - not ready`);
       }
     }
   }
 
-  private async storeCabalMessage(cabalName: string, message: AppEvent) {
-    try {
-      const messageLog =
-        JSON.stringify({
-          ...message,
-          timestamp: Date.now(),
-        }) + "\n";
+  private async getCabalHistory(cabalName: string): Promise<Message[]> {
+    const kv = await Deno.openKv();
+    const messages: Message[] = [];
 
-      await Deno.writeTextFile(`./ChatLogs/${cabalName}.json`, messageLog, {
-        append: true,
-      });
-    } catch (error) {
-      console.error(`Error storing message for ${cabalName}:`, error);
-    }
-  }
+    // List all messages for this cabal
+    const prefix = ["messages", cabalName];
+    const entries = kv.list<Message>({ prefix });
 
-  private async getCabalHistory(cabalName: string): Promise<AppEvent[]> {
-    try {
-      const content = await Deno.readTextFile(`./ChatLogs/${cabalName}.json`);
-      return content
-        .split("\n")
-        .filter((line) => line.trim())
-        .map((line) => JSON.parse(line));
-    } catch (error) {
-      console.log(`No history found for ${cabalName}`);
-      return [];
+    for await (const entry of entries) {
+      if (entry.value) {
+        messages.push({
+          ...entry.value,
+          timestamp: entry.value.timestamp,
+        });
+      }
     }
+
+    // Sort by timestamp
+    return messages.sort((a, b) => a.timestamp - b.timestamp);
   }
 
   private cleanup() {
-    console.log("Cleaning up server...");
+    console.info("Cleaning up server...");
     for (const client of this.connectedClients.values()) {
       try {
         if (client.readyState === WebSocket.OPEN) {

@@ -1,6 +1,6 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-read --allow-write main.ts",
+    "dev": "deno run --allow-net --allow-read --allow-write --unstable-kv main.ts",
     "dev2": "deno run --allow-net --allow-read --allow-write' main.ts --port=8081"
   },
   "imports": {
@@ -8,7 +8,7 @@
     "@std/assert": "jsr:@std/assert@1"
   },
   "compilerOptions": {
-    "lib": ["deno.window", "deno.ns"]
+    "lib": ["deno.window", "deno.ns", "deno.unstable"]
   },
   "deploy": {
     "project": "8094f3e9-b9f8-4e3c-9057-0485d1933121",

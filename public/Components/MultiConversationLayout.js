@@ -1,8 +1,9 @@
 import { ConversationWindow } from "./ConversationWindow.js";
 
 export class MultiConversationLayout {
-  constructor(socket) {
+  constructor(socket, username) {
     this.socket = socket;
+    this.currentUsername = username;
     this.activeConversations = new Map();
     this.windowOrder = []; // Keep track of window order
     this.container = document.getElementById("multi-conversation-layout");
@@ -50,21 +51,15 @@ export class MultiConversationLayout {
   }
 
   sendMessage(message) {
-    console.log("Attempting to send message");
-    console.log("Active conversation:", this.activeConversation);
-
     if (!this.activeConversation) {
-      console.log("No active conversation");
       return;
     }
 
     if (!this.activeConversations.has(this.activeConversation)) {
-      console.log("Active conversation not found in conversation map");
       return;
     }
 
     // Add cabalName to the message event
-    console.log("Sending message to:", this.activeConversation);
     this.socket.send(
       JSON.stringify({
         event: "send-message",
@@ -86,20 +81,21 @@ export class MultiConversationLayout {
     if (this.activeConversations.size >= this.maxConversations) {
       const oldestCabal = this.windowOrder[0];
       this.removeConversation(oldestCabal);
-      this.windowOrder = this.windowOrder.slice(1); // Remove oldest from order list
+      this.windowOrder = this.windowOrder.slice(1);
     }
 
     const conversationWindow = new ConversationWindow(
       cabalName,
       (name) => this.removeConversation(name),
       (name) => {
-        console.log("Activation callback triggered for:", name);
         this.setActiveConversation(name);
-      }
+      },
+      this.socket, // Pass the socket
+      this.currentUsername // Pass the username
     );
 
     this.activeConversations.set(cabalName, conversationWindow);
-    this.windowOrder.push(cabalName); // Add to order list
+    this.windowOrder.push(cabalName);
     this.container.insertBefore(
       conversationWindow.element,
       this.container.lastChild
@@ -113,23 +109,17 @@ export class MultiConversationLayout {
         cabalName: cabalName,
       })
     );
-
-    // Set as active conversation
-    this.setActiveConversation(cabalName);
   }
 
   addMessageHistory(cabalName, messages) {
     const conversation = this.activeConversations.get(cabalName);
     if (conversation) {
-      conversation.clearMessages(); // Add this method to ConversationWindow
-      messages.forEach((msg) => {
-        conversation.addMessage(msg.username, msg.message, msg.timestamp);
-      });
+      conversation.clearMessages();
+      messages.forEach((msg) => conversation.addMessage(msg));
     }
   }
 
   removeConversation(cabalName) {
-    console.log("Removing conversation:", cabalName);
     const conversation = this.activeConversations.get(cabalName);
 
     if (conversation) {
@@ -138,30 +128,19 @@ export class MultiConversationLayout {
       this.windowOrder = this.windowOrder.filter((name) => name !== cabalName);
 
       if (this.activeConversation === cabalName) {
-        console.log(
-          "Removed active conversation, finding new active conversation"
-        );
         const remainingCabals = Array.from(this.activeConversations.keys());
         if (remainingCabals.length > 0) {
-          console.log("Setting new active conversation:", remainingCabals[0]);
           this.setActiveConversation(remainingCabals[0]);
         } else {
-          console.log("No conversations left, clearing active conversation");
           this.setActiveConversation(null);
         }
       }
 
       this.updateLayout();
-      console.log(
-        "Remaining conversations:",
-        Array.from(this.activeConversations.keys())
-      );
     }
   }
 
   setActiveConversation(cabalName) {
-    console.log("Setting active conversation:", cabalName);
-
     // Remove active class from all conversations
     this.activeConversations.forEach((conversation) => {
       conversation.element.classList.remove("active");
@@ -212,49 +191,38 @@ export class MultiConversationLayout {
   }
 
   updateLayout() {
-    console.log("Updating layout");
-    console.log("Active conversations size:", this.activeConversations.size);
-    console.log("Container classes before:", this.container.className);
-
     this.container.classList.remove("grid-1", "grid-2", "grid-3", "grid-4");
     if (this.activeConversations.size > 0) {
       const gridClass = `grid-${this.activeConversations.size}`;
-      console.log("Adding grid class:", gridClass);
       this.container.classList.add(gridClass);
       this.inputArea.style.display = "flex";
     } else {
       this.inputArea.style.display = "none";
     }
-
-    console.log("Container classes after:", this.container.className);
   }
 
   addMessage(cabalName, username, message) {
-    console.log("Adding message to conversation:", cabalName);
-
-    // If the conversation window doesn't exist yet, create it
     if (!this.activeConversations.has(cabalName)) {
       this.addConversation(cabalName);
-
-      // Send join event to server
-      this.socket.send(
-        JSON.stringify({
-          event: "join-cabal",
-          cabalName: cabalName,
-        })
-      );
     }
 
     const conversation = this.activeConversations.get(cabalName);
     if (conversation) {
-      conversation.addMessage(username, message);
+      // Create a proper message object
+      const messageData = {
+        id: crypto.randomUUID(),
+        username: username,
+        message: message,
+        timestamp: Date.now(),
+        roomName: cabalName,
+      };
 
-      // If this is not the active conversation, show unread indicator
+      conversation.addMessage(messageData);
+
       if (cabalName !== this.activeConversation) {
         conversation.element.classList.add("has-unread");
       }
 
-      // Add subtle highlight animation
       conversation.element.classList.add("message-received");
       setTimeout(() => {
         conversation.element.classList.remove("message-received");

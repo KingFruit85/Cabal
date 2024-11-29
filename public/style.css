@@ -307,6 +307,53 @@ aside li {
   margin-bottom: var(--spacing-xs);
 }
 
+.message .edited {
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.5);
+  margin-left: 0.5rem;
+}
+
+.message .content {
+  padding-top: 5px;
+  padding-left: 5px;
+  color: antiquewhite;
+}
+
+.message .content.deleted {
+  font-style: italic;
+  opacity: 0.7;
+}
+
+.message-actions {
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.message:hover .message-actions {
+  opacity: 1;
+}
+
+.message .edit-btn,
+.message .delete-btn {
+  background: none;
+  border: none;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  cursor: pointer;
+}
+
+.message .edit-btn:hover,
+.message .delete-btn:hover {
+  color: white;
+}
+
+.edit-input {
+  width: 100%;
+  padding: 0.25rem;
+  margin-bottom: 0.5rem;
+}
+
 .message.sent {
   align-self: flex-end;
   background: var(--color-primary);
