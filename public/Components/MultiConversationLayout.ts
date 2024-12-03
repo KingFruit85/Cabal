@@ -1,43 +1,79 @@
-import { ConversationWindow } from "./ConversationWindow.js";
+import { ConversationWindow } from "./ConversationWindow.ts";
 
 export class MultiConversationLayout {
-  constructor(socket, username) {
+  private socket: WebSocket;
+  private currentUsername: string;
+  public activeConversations: Map<string, ConversationWindow>;
+  private windowOrder: string[];
+  private container: HTMLDivElement;
+  private maxConversations: number;
+  public activeConversation: string | null;
+  private inputArea: HTMLDivElement;
+  private input: HTMLInputElement;
+  private sendButton: HTMLButtonElement;
+
+  constructor(socket: WebSocket, username: string) {
     this.socket = socket;
     this.currentUsername = username;
     this.activeConversations = new Map();
-    this.windowOrder = []; // Keep track of window order
-    this.container = document.getElementById("multi-conversation-layout");
-    this.container.innerHTML = ""; // Clear any existing content
+
+    this.inputArea = document.createElement("div");
+    this.inputArea.className = "input-area";
+    this.input = document.createElement("input");
+    this.input.type = "text";
+    this.input.className = "message-input";
+    this.sendButton = document.createElement("button");
+    this.sendButton.className = "send-button";
+    this.sendButton.textContent = "Send";
+
+    this.windowOrder = [];
+    const containerElement = document.getElementById(
+      "multi-conversation-layout"
+    );
+    if (!containerElement) {
+      throw new Error("Container element not found");
+    }
+    this.container = containerElement as HTMLDivElement;
+    this.container.innerHTML = "";
     this.maxConversations = 4;
     this.activeConversation = null;
     this.setupInput();
     this.setupStyles();
   }
 
-  setupStyles() {
+  private setupStyles(): void {
     this.container.classList.add("conversation-grid");
   }
 
-  setupInput() {
+  private setupInput(): void {
     const inputArea = document.createElement("div");
     inputArea.className = "global-input-area";
-    inputArea.style.display = "none"; // Initially hidden
+    inputArea.style.display = "none";
     inputArea.innerHTML = `
-        <input 
-          type="text" 
-          class="global-message-input" 
-          placeholder="Select a conversation..." 
-          disabled
-        >
-        <button class="global-send-btn" disabled>Send</button>
+      <input 
+        type="text" 
+        class="global-message-input" 
+        placeholder="Select a conversation..." 
+        disabled
+      >
+      <button class="global-send-btn" disabled>Send</button>
     `;
-    document.querySelector("main").appendChild(inputArea); // Append to main instead
 
-    this.inputArea = inputArea; // Store reference to input area
-    this.input = inputArea.querySelector(".global-message-input");
-    this.sendButton = inputArea.querySelector(".global-send-btn");
+    const main = document.querySelector("main");
+    if (!main) {
+      throw new Error("Main element not found");
+    }
+    main.appendChild(inputArea);
 
-    this.input.addEventListener("keypress", (e) => {
+    this.inputArea = inputArea;
+    this.input = inputArea.querySelector(
+      ".global-message-input"
+    ) as HTMLInputElement;
+    this.sendButton = inputArea.querySelector(
+      ".global-send-btn"
+    ) as HTMLButtonElement;
+
+    this.input.addEventListener("keypress", (e: KeyboardEvent) => {
       if (e.key === "Enter" && this.input.value.trim()) {
         this.sendMessage(this.input.value.trim());
       }
@@ -50,7 +86,7 @@ export class MultiConversationLayout {
     });
   }
 
-  sendMessage(message) {
+  private sendMessage(message: string): void {
     if (!this.activeConversation) {
       return;
     }
@@ -59,7 +95,6 @@ export class MultiConversationLayout {
       return;
     }
 
-    // Add cabalName to the message event
     this.socket.send(
       JSON.stringify({
         event: "send-message",
@@ -70,14 +105,12 @@ export class MultiConversationLayout {
     this.input.value = "";
   }
 
-  addConversation(cabalName) {
-    // If window already exists, just activate it
+  addConversation(cabalName: string): void {
     if (this.activeConversations.has(cabalName)) {
       this.setActiveConversation(cabalName);
       return;
     }
 
-    // If we're at max capacity, remove the oldest window
     if (this.activeConversations.size >= this.maxConversations) {
       const oldestCabal = this.windowOrder[0];
       this.removeConversation(oldestCabal);
@@ -87,11 +120,9 @@ export class MultiConversationLayout {
     const conversationWindow = new ConversationWindow(
       cabalName,
       (name) => this.removeConversation(name),
-      (name) => {
-        this.setActiveConversation(name);
-      },
-      this.socket, // Pass the socket
-      this.currentUsername // Pass the username
+      (name) => this.setActiveConversation(name),
+      this.socket,
+      this.currentUsername
     );
 
     this.activeConversations.set(cabalName, conversationWindow);
@@ -102,7 +133,6 @@ export class MultiConversationLayout {
     );
     this.updateLayout();
 
-    // Send join event to server
     this.socket.send(
       JSON.stringify({
         event: "join-cabal",
@@ -111,7 +141,7 @@ export class MultiConversationLayout {
     );
   }
 
-  addMessageHistory(cabalName, messages) {
+  addMessageHistory(cabalName: string, messages: any[]): void {
     const conversation = this.activeConversations.get(cabalName);
     if (conversation) {
       conversation.clearMessages();
@@ -119,7 +149,7 @@ export class MultiConversationLayout {
     }
   }
 
-  removeConversation(cabalName) {
+  removeConversation(cabalName: string): void {
     const conversation = this.activeConversations.get(cabalName);
 
     if (conversation) {
@@ -140,13 +170,11 @@ export class MultiConversationLayout {
     }
   }
 
-  setActiveConversation(cabalName) {
-    // Remove active class from all conversations
+  setActiveConversation(cabalName: string | null): void {
     this.activeConversations.forEach((conversation) => {
       conversation.element.classList.remove("active");
     });
 
-    // Remove active class from all cabal buttons
     document.querySelectorAll("#cabals li").forEach((item) => {
       item.classList.remove("active");
     });
@@ -155,24 +183,22 @@ export class MultiConversationLayout {
 
     if (cabalName && this.activeConversations.has(cabalName)) {
       const conversation = this.activeConversations.get(cabalName);
+      if (!conversation) return;
 
-      // Enable input and update UI
       this.input.disabled = false;
       this.sendButton.disabled = false;
       this.input.placeholder = `Message ${cabalName}...`;
 
-      // Add active class to conversation window
       conversation.element.classList.add("active");
 
-      // Find and activate the corresponding cabal button
       const cabalButton = Array.from(
         document.querySelectorAll("#cabals li")
-      ).find((item) => item.textContent.startsWith(cabalName));
+      ).find((item) => item.textContent?.startsWith(cabalName));
+
       if (cabalButton) {
         cabalButton.classList.add("active");
       }
 
-      // Send join event to server
       this.socket.send(
         JSON.stringify({
           event: "join-cabal",
@@ -180,17 +206,15 @@ export class MultiConversationLayout {
         })
       );
 
-      // Focus the input
       this.input.focus();
     } else {
-      // Disable input if no active conversation
       this.input.disabled = true;
       this.sendButton.disabled = true;
       this.input.placeholder = "Select a conversation...";
     }
   }
 
-  updateLayout() {
+  private updateLayout(): void {
     this.container.classList.remove("grid-1", "grid-2", "grid-3", "grid-4");
     if (this.activeConversations.size > 0) {
       const gridClass = `grid-${this.activeConversations.size}`;
@@ -201,18 +225,17 @@ export class MultiConversationLayout {
     }
   }
 
-  addMessage(cabalName, username, message) {
+  addMessage(cabalName: string, username: string, content: string): void {
     if (!this.activeConversations.has(cabalName)) {
       this.addConversation(cabalName);
     }
 
     const conversation = this.activeConversations.get(cabalName);
     if (conversation) {
-      // Create a proper message object
       const messageData = {
         id: crypto.randomUUID(),
         username: username,
-        message: message,
+        content: content,
         timestamp: Date.now(),
         roomName: cabalName,
       };

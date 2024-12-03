@@ -21,7 +21,8 @@
   --color-primary-dark: rgb(183, 48, 145);
 
   /* Typography */
-  --font-primary: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-primary:
+    "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* Spacing */
   --spacing-xs: 0.25rem;
