@@ -1,22 +1,19 @@
-export interface Cabal {
+// A Cabal is a open room
+// A Colloquy is a private room
+export type RoomType = "cabal" | "colloquy";
+
+export interface Room {
   name: string;
+  type: RoomType;
   members: Set<string>;
   createdAt: number;
   lastActivity: number;
   ttl: number;
 }
 
-export interface ICabalManager {
-  createCabal(name: string, description?: string): Promise<Cabal | null>;
-  joinCabal(username: string, cabalName: string): Promise<boolean>;
-  leaveCabal(username: string, cabalName: string): Promise<void>;
-  refreshCabalTTL(cabalName: string): Promise<void>;
-  getCabal(cabalName: string): Cabal | undefined;
-  getAllCabals(): Map<string, Cabal>;
-}
-
-export type CabalEvent = {
+export type RoomEvent = {
   type: "created" | "joined" | "left" | "expired";
-  cabalName: string;
+  roomName: string;
+  roomType: RoomType;
   username?: string;
 };

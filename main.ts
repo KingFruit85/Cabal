@@ -1,6 +1,7 @@
 import { Application, Context, Router } from "@oak/oak";
 import { parseArgs } from "jsr:@std/cli/parse-args";
 import ChatServer from "./src/server/ChatServer.ts";
+import { bgGreen, green } from "jsr:@std/internal@^1.0.5/styles";
 
 const app = new Application();
 const portArg = parseArgs(Deno.args, {
@@ -11,16 +12,7 @@ const PortToParse = portArg.port || "8080";
 const port = parseInt(PortToParse);
 const router = new Router();
 const server = new ChatServer();
-let abortController = new AbortController();
-
-// Add MIME type mapping
-const MIME_TYPES: Record<string, string> = {
-  ".ts": "application/javascript",
-  ".js": "application/javascript",
-  ".css": "text/css",
-  ".html": "text/html",
-  ".json": "application/json",
-};
+const abortController = new AbortController();
 
 app.use(async (context, next) => {
   try {
@@ -55,5 +47,5 @@ async function shutdown() {
 Deno.addSignalListener("SIGINT", shutdown);
 Deno.addSignalListener("SIGTERM", shutdown);
 
-console.info("Listening at http://localhost:" + port);
+console.log(bgGreen("Listening at http://localhost:" + port));
 await app.listen({ port });

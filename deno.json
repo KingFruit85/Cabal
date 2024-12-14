@@ -1,6 +1,7 @@
 {
   "tasks": {
-    "dev": "deno run --allow-net --allow-read --allow-write --unstable-kv main.ts",
+    "dev": "bundle ; deno run --allow-net --allow-read --allow-write --unstable-kv main.ts",
+    "dev2": "deno run --allow-net --allow-read --allow-write --unstable-kv main.ts --port=8081",
     "bundle": "deno run --allow-read --allow-write --allow-env --allow-net --allow-run bundle.ts",
     "watch": "deno bundle --watch public/app.ts public/dist/app.js"
   },

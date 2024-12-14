@@ -1,6 +1,6 @@
 import { WebSocketWithMetadata } from "../types/WebSocket.ts";
 import { BroadcastEvent, IBroadcastManager } from "../types/Broadcast.ts";
-import { ICabalManager } from "../types/Room.ts";
+import { RoomManager } from "./RoomManager.ts";
 
 export class BroadcastManager implements IBroadcastManager {
   constructor(
@@ -8,7 +8,7 @@ export class BroadcastManager implements IBroadcastManager {
       string,
       WebSocketWithMetadata
     >,
-    private readonly cabalManager: ICabalManager
+    private readonly roomManager: RoomManager
   ) {}
 
   public broadcastToAll(event: BroadcastEvent): void {
@@ -49,26 +49,27 @@ export class BroadcastManager implements IBroadcastManager {
   }
 
   public broadcastRoomList(): void {
-    const cabals = this.cabalManager.getAllCabals();
-    const cabalList = Array.from(cabals.values()).map((cabal) => ({
-      name: cabal.name,
-      memberCount: cabal.members.size,
+    const rooms = this.roomManager.getAllRooms();
+    const roomList = Array.from(rooms.values()).map((room) => ({
+      name: room.name,
+      lastActivity: room.lastActivity,
+      ttl: room.ttl,
     }));
 
     this.broadcastToAll({
-      event: "update-cabals",
-      cabals: cabalList,
+      event: "update-rooms",
+      rooms: roomList,
     });
   }
 
   public broadcastRoomMembers(roomName: string): void {
-    const cabal = this.cabalManager.getCabal(roomName);
-    if (!cabal) return;
+    const room = this.roomManager.getRoom(roomName);
+    if (!room) return;
 
     this.broadcastToRoom(roomName, {
       event: "update-room-members",
       roomName,
-      members: Array.from(cabal.members),
+      members: Array.from(room.members),
     });
   }
 
@@ -76,6 +77,14 @@ export class BroadcastManager implements IBroadcastManager {
     this.broadcastToUser(username, {
       event: "error",
       message: error,
+    });
+  }
+
+  public sendRoomListToUser(username: string): void {
+    const rooms = Array.from(this.roomManager.getAllRooms().values());
+    this.broadcastToUser(username, {
+      event: "update-rooms",
+      rooms,
     });
   }
 
@@ -89,7 +98,6 @@ export class BroadcastManager implements IBroadcastManager {
     }
   }
 
-  // Optional: Add retry logic for important messages
   public async broadcastWithRetry(
     event: BroadcastEvent,
     recipients: string[],
@@ -139,7 +147,6 @@ export class BroadcastManager implements IBroadcastManager {
     });
   }
 
-  // Optional: Add batch broadcasting
   public broadcastToBatch(
     event: BroadcastEvent,
     usernames: string[],
@@ -161,7 +168,6 @@ export class BroadcastManager implements IBroadcastManager {
     }
   }
 
-  // Optional: Add message queuing for offline users
   private messageQueue = new Map<string, BroadcastEvent[]>();
 
   public queueMessageForUser(username: string, event: BroadcastEvent): void {

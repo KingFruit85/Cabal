@@ -161,7 +161,7 @@ export class MessageManager implements IMessageManager {
       }
 
       // Sort by timestamp, newest first
-      return messages.sort((a, b) => b.timestamp - a.timestamp);
+      return messages.sort((a, b) => a.timestamp - b.timestamp);
     } catch (error) {
       console.error("Error getting room history:", error);
       return [];
@@ -186,44 +186,12 @@ export class MessageManager implements IMessageManager {
     }
   }
 
-  // Optional: Add pagination support
-  public async getRoomHistoryPaginated(
-    roomName: string,
-    pageSize: number = 20
-  ): Promise<{
-    messages: Message[];
-    nextCursor?: string;
-  }> {
-    try {
-      const messages: Message[] = [];
-      const prefix = ["messages", roomName];
-
-      const options: Deno.KvListSelector = {
-        prefix: prefix,
-      };
-
-      const entries = this.kv.list<Message>(options);
-
-      for await (const entry of entries) {
-        if (entry.value) {
-          messages.push(entry.value);
-        }
-      }
-
-      return {
-        messages: messages.sort((a, b) => b.timestamp - a.timestamp),
-        nextCursor: entries.cursor,
-      };
-    } catch (error) {
-      console.error("Error getting paginated room history:", error);
-      return { messages: [] };
-    }
-  }
-
   // Utility method to check message ownership
-  public isMessageOwner(messageId: string, username: string): Promise<boolean> {
-    return this.getMessage(messageId).then(
-      (message) => message?.username === username
-    );
+  public async isMessageOwner(
+    messageId: string,
+    username: string
+  ): Promise<boolean> {
+    const message = await this.getMessage(messageId);
+    return message?.username === username;
   }
 }

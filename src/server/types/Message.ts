@@ -1,3 +1,5 @@
+import { RoomType } from "./Room.ts";
+
 export interface Message {
   id: string;
   roomName: string;
@@ -27,7 +29,7 @@ export type MessageEvent = {
 
 export interface SendMessageData {
   message: string;
-  cabalName: string;
+  roomName: string;
 }
 
 export interface EditMessageData {
@@ -39,14 +41,16 @@ export interface DeleteMessageData {
   messageId: string;
 }
 
-export interface JoinCabalData {
-  cabalName: string;
+export interface JoinRoomData {
+  roomName: string;
 }
 
-export interface LeaveCabalData {
-  cabalName: string;
+export interface LeaveRoomData {
+  roomName: string;
 }
 
-export interface CreateCabalData {
-  cabalName: string;
+export interface CreateRoomData {
+  roomName: string;
+  roomType: RoomType;
+  initialMembers: string[];
 }

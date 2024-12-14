@@ -1,3 +1,4 @@
+import { bgGreen } from "jsr:@std/internal@^1.0.5/styles";
 import { ConversationWindow } from "./ConversationWindow.ts";
 
 export class MultiConversationLayout {
@@ -95,38 +96,44 @@ export class MultiConversationLayout {
       return;
     }
 
+    console.debug("sending message to ", this.activeConversation);
+
     this.socket.send(
       JSON.stringify({
         event: "send-message",
         message: message,
-        cabalName: this.activeConversation,
+        roomName: this.activeConversation,
       })
     );
     this.input.value = "";
   }
 
-  addConversation(cabalName: string): void {
-    if (this.activeConversations.has(cabalName)) {
-      this.setActiveConversation(cabalName);
+  addConversation(roomName: string): void {
+    if (this.activeConversations.has(roomName)) {
+      this.setActiveConversation(roomName);
       return;
     }
 
+    console.log("past addConversation return");
+
     if (this.activeConversations.size >= this.maxConversations) {
-      const oldestCabal = this.windowOrder[0];
-      this.removeConversation(oldestCabal);
+      const oldestRoom = this.windowOrder[0];
+      this.removeConversation(oldestRoom);
       this.windowOrder = this.windowOrder.slice(1);
     }
 
     const conversationWindow = new ConversationWindow(
-      cabalName,
+      roomName,
       (name) => this.removeConversation(name),
       (name) => this.setActiveConversation(name),
       this.socket,
       this.currentUsername
     );
+    console.log(bgGreen(`adding ${roomName} - ${conversationWindow}`));
 
-    this.activeConversations.set(cabalName, conversationWindow);
-    this.windowOrder.push(cabalName);
+    this.activeConversations.set(roomName, conversationWindow);
+    console.log(JSON.stringify(this.activeConversations));
+    this.windowOrder.push(roomName);
     this.container.insertBefore(
       conversationWindow.element,
       this.container.lastChild
@@ -135,32 +142,38 @@ export class MultiConversationLayout {
 
     this.socket.send(
       JSON.stringify({
-        event: "join-cabal",
-        cabalName: cabalName,
+        event: "join-room",
+        roomName: roomName,
       })
     );
   }
 
-  addMessageHistory(cabalName: string, messages: any[]): void {
-    const conversation = this.activeConversations.get(cabalName);
+  addMessageHistory(roomName: string, messages: any[]): void {
+    const conversation = this.activeConversations.get(roomName);
+    console.log("addMessageHistory OUTERLOOP");
+    console.log(JSON.stringify(this.activeConversations));
+    console.log(conversation);
+
     if (conversation) {
+      console.log("addMessageHistory INNERLOOP");
+
       conversation.clearMessages();
       messages.forEach((msg) => conversation.addMessage(msg));
     }
   }
 
-  removeConversation(cabalName: string): void {
-    const conversation = this.activeConversations.get(cabalName);
+  removeConversation(roomName: string): void {
+    const conversation = this.activeConversations.get(roomName);
 
     if (conversation) {
       conversation.element.remove();
-      this.activeConversations.delete(cabalName);
-      this.windowOrder = this.windowOrder.filter((name) => name !== cabalName);
+      this.activeConversations.delete(roomName);
+      this.windowOrder = this.windowOrder.filter((name) => name !== roomName);
 
-      if (this.activeConversation === cabalName) {
-        const remainingCabals = Array.from(this.activeConversations.keys());
-        if (remainingCabals.length > 0) {
-          this.setActiveConversation(remainingCabals[0]);
+      if (this.activeConversation === roomName) {
+        const remainingRooms = Array.from(this.activeConversations.keys());
+        if (remainingRooms.length > 0) {
+          this.setActiveConversation(remainingRooms[0]);
         } else {
           this.setActiveConversation(null);
         }
@@ -170,7 +183,7 @@ export class MultiConversationLayout {
     }
   }
 
-  setActiveConversation(cabalName: string | null): void {
+  setActiveConversation(roomName: string | null): void {
     this.activeConversations.forEach((conversation) => {
       conversation.element.classList.remove("active");
     });
@@ -179,30 +192,30 @@ export class MultiConversationLayout {
       item.classList.remove("active");
     });
 
-    this.activeConversation = cabalName;
+    this.activeConversation = roomName;
 
-    if (cabalName && this.activeConversations.has(cabalName)) {
-      const conversation = this.activeConversations.get(cabalName);
+    if (roomName && this.activeConversations.has(roomName)) {
+      const conversation = this.activeConversations.get(roomName);
       if (!conversation) return;
 
       this.input.disabled = false;
       this.sendButton.disabled = false;
-      this.input.placeholder = `Message ${cabalName}...`;
+      this.input.placeholder = `Message ${roomName}...`;
 
       conversation.element.classList.add("active");
 
-      const cabalButton = Array.from(
+      const roomButton = Array.from(
         document.querySelectorAll("#cabals li")
-      ).find((item) => item.textContent?.startsWith(cabalName));
+      ).find((item) => item.textContent?.startsWith(roomName));
 
-      if (cabalButton) {
-        cabalButton.classList.add("active");
+      if (roomButton) {
+        roomButton.classList.add("active");
       }
 
       this.socket.send(
         JSON.stringify({
-          event: "join-cabal",
-          cabalName: cabalName,
+          event: "join-room",
+          roomName: roomName,
         })
       );
 
@@ -225,24 +238,24 @@ export class MultiConversationLayout {
     }
   }
 
-  addMessage(cabalName: string, username: string, content: string): void {
-    if (!this.activeConversations.has(cabalName)) {
-      this.addConversation(cabalName);
+  addMessage(roomName: string, username: string, content: string): void {
+    if (!this.activeConversations.has(roomName)) {
+      this.addConversation(roomName);
     }
 
-    const conversation = this.activeConversations.get(cabalName);
+    const conversation = this.activeConversations.get(roomName);
     if (conversation) {
       const messageData = {
         id: crypto.randomUUID(),
         username: username,
         content: content,
         timestamp: Date.now(),
-        roomName: cabalName,
+        roomName: roomName,
       };
 
       conversation.addMessage(messageData);
 
-      if (cabalName !== this.activeConversation) {
+      if (roomName !== this.activeConversation) {
         conversation.element.classList.add("has-unread");
       }
 

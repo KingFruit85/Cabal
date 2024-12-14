@@ -2,23 +2,23 @@ import { Context } from "@oak/oak";
 import { WebSocketManager } from "./managers/WebSocketManager.ts";
 import { MessageManager } from "./managers/MessageManager.ts";
 import { BroadcastManager } from "./managers/BroadcastManager.ts";
-import { CabalManager } from "./managers/CabalManager.ts";
+import { RoomManager } from "./managers/RoomManager.ts";
 import { WebSocketWithMetadata } from "./types/WebSocket.ts";
-import { CabalEvent } from "./types/Room.ts";
 import { MessageEvent } from "./types/Message.ts";
 import {
-  CreateCabalData,
+  CreateRoomData,
   DeleteMessageData,
   EditMessageData,
-  JoinCabalData,
-  LeaveCabalData,
+  JoinRoomData,
+  LeaveRoomData,
   SendMessageData,
 } from "./types/Message.ts";
+import { RoomEvent } from "./types/Room.ts";
 
 export default class ChatServer {
   private webSocketManager: WebSocketManager;
   private messageManager: MessageManager;
-  private cabalManager: CabalManager;
+  private roomManager: RoomManager;
   private broadcastManager: BroadcastManager;
 
   constructor() {
@@ -27,24 +27,26 @@ export default class ChatServer {
       this.handleMessageEvent(event)
     );
 
-    this.cabalManager = new CabalManager(
-      (event) => this.handleCabalEvent(event),
+    this.roomManager = new RoomManager(
+      (event) => this.handleRoomEvent(event),
       this.messageManager
-    );
-
-    this.webSocketManager = new WebSocketManager(
-      (username) => this.handleClientDisconnect(username),
-      this.getMessageHandlers()
     );
 
     this.broadcastManager = new BroadcastManager(
       () => this.webSocketManager.getConnectedClients(),
-      this.cabalManager
+      this.roomManager
+    );
+
+    this.webSocketManager = new WebSocketManager(
+      (username) => this.handleClientDisconnect(username),
+      this.getMessageHandlers(),
+      this.broadcastManager
     );
   }
 
   public async handleConnection(ctx: Context): Promise<void> {
     await this.webSocketManager.handleConnection(ctx);
+    this.broadcastManager.broadcastRoomList();
   }
 
   private getMessageHandlers() {
@@ -57,16 +59,12 @@ export default class ChatServer {
         socket: WebSocketWithMetadata,
         data: DeleteMessageData
       ) => this.handleDeleteMessage(socket, data),
-      "join-cabal": (socket: WebSocketWithMetadata, data: JoinCabalData) =>
-        this.handleJoinCabal(socket, data),
-      "leave-cabal": (socket: WebSocketWithMetadata, data: LeaveCabalData) =>
-        this.handleLeaveCabal(socket, data),
-      "create-cabal": (
-        socket: WebSocketWithMetadata,
-        data: CreateCabalData
-      ) => {
-        console.log("create-cabal", data.cabalName);
-        this.handleCreateCabal(socket, data);
+      "join-room": (socket: WebSocketWithMetadata, data: JoinRoomData) =>
+        this.handleJoinRoom(socket, data),
+      "leave-room": (socket: WebSocketWithMetadata, data: LeaveRoomData) =>
+        this.handleLeaveRoom(socket, data),
+      "create-room": (socket: WebSocketWithMetadata, data: CreateRoomData) => {
+        this.handleCreateRoom(socket, data);
       },
     };
   }
@@ -80,12 +78,12 @@ export default class ChatServer {
         id: crypto.randomUUID(),
         username: socket.username,
         content: data.message,
-        roomName: data.cabalName,
+        roomName: data.roomName,
         timestamp: Date.now(),
       };
 
       await this.messageManager.storeMessage(message);
-      await this.cabalManager.refreshCabalTTL(data.cabalName);
+      await this.roomManager.refreshRoomTTL(data.roomName);
     } catch (error) {
       console.error("Error handling send message:", error);
       this.broadcastManager.broadcastError(
@@ -144,88 +142,95 @@ export default class ChatServer {
     }
   }
 
-  private async handleJoinCabal(
+  private async handleJoinRoom(
     socket: WebSocketWithMetadata,
-    data: JoinCabalData
+    data: JoinRoomData
   ) {
     try {
-      const success = await this.cabalManager.joinCabal(
+      console.log(`Attempting to join room: ${data.roomName}`);
+      const success = await this.roomManager.joinRoom(
         socket.username,
-        data.cabalName
+        data.roomName
       );
+      console.log(`Join room success: ${success}`);
+
       if (success) {
-        socket.currentRoom = data.cabalName;
-        const history = await this.messageManager.getRoomHistory(
-          data.cabalName
+        socket.currentRoom = data.roomName;
+        const history = await this.messageManager.getRoomHistory(data.roomName);
+        console.log(
+          `Retrieved history for ${data.roomName}:`,
+          history.length,
+          "messages"
         );
+
         this.broadcastManager.broadcastToUser(socket.username, {
-          event: "cabal-history",
-          cabalName: data.cabalName,
+          event: "room-history",
+          roomName: data.roomName,
           messages: history,
         });
       }
     } catch (error) {
-      console.error("Error handling join cabal:", error);
+      console.error("Error handling join room:", error);
       this.broadcastManager.broadcastError(
         socket.username,
-        "Failed to join cabal"
+        "Failed to join room"
       );
     }
   }
 
-  private async handleLeaveCabal(
+  private async handleLeaveRoom(
     socket: WebSocketWithMetadata,
-    data: LeaveCabalData
+    data: LeaveRoomData
   ) {
     try {
-      await this.cabalManager.leaveCabal(socket.username, data.cabalName);
+      await this.roomManager.leaveRoom(socket.username, data.roomName);
     } catch (error) {
-      console.error("Error handling leave cabal:", error);
+      console.error("Error handling leave room:", error);
       this.broadcastManager.broadcastError(
         socket.username,
-        "Failed to leave cabal"
+        "Failed to leave room"
       );
     }
   }
 
-  private async handleCreateCabal(
+  private async handleCreateRoom(
     socket: WebSocketWithMetadata,
-    data: CreateCabalData
+    data: CreateRoomData
   ) {
     try {
-      const cabal = await this.cabalManager.createCabal(data.cabalName);
-      if (!cabal) {
+      const room = await this.roomManager.createRoom(data);
+      if (!room) {
         this.broadcastManager.broadcastError(
           socket.username,
-          "Cabal already exists"
+          "room already exists"
         );
       }
     } catch (error) {
-      console.error("Error handling create cabal:", error);
+      console.error("Error handling create room:", error);
       this.broadcastManager.broadcastError(
         socket.username,
-        "Failed to create cabal"
+        "Failed to create room"
       );
     }
   }
 
-  private handleCabalEvent(event: CabalEvent): void {
+  private handleRoomEvent(event: RoomEvent): void {
     switch (event.type) {
       case "created":
         this.broadcastManager.broadcastRoomList();
         break;
       case "joined":
-        this.broadcastManager.broadcastRoomMembers(event.cabalName);
+        this.broadcastManager.broadcastRoomMembers(event.roomName);
         this.broadcastManager.broadcastRoomList();
         break;
       case "left":
-        this.broadcastManager.broadcastRoomMembers(event.cabalName);
+        this.broadcastManager.broadcastRoomMembers(event.roomName);
         this.broadcastManager.broadcastRoomList();
         break;
       case "expired":
         this.broadcastManager.broadcastToAll({
           event: "expired",
-          cabalName: event.cabalName,
+          roomName: event.roomName,
         });
         this.broadcastManager.broadcastRoomList();
         break;
@@ -234,6 +239,7 @@ export default class ChatServer {
 
   private handleMessageEvent(event: MessageEvent): void {
     const { message } = event;
+
     switch (event.type) {
       case "created":
         this.broadcastManager.broadcastToRoom(message.roomName, {
@@ -259,13 +265,13 @@ export default class ChatServer {
   private handleClientDisconnect(username: string): void {
     const client = this.webSocketManager.getClient(username);
     if (client?.currentRoom) {
-      this.cabalManager.leaveCabal(username, client.currentRoom);
+      this.roomManager.leaveRoom(username, client.currentRoom);
     }
     this.broadcastManager.broadcastUserList();
   }
 
   public cleanup(): void {
-    this.cabalManager.dispose();
+    this.roomManager.dispose();
     // Close all WebSocket connections
     for (const client of this.webSocketManager.getConnectedClients().values()) {
       try {

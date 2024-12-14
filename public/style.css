@@ -21,8 +21,7 @@
   --color-primary-dark: rgb(183, 48, 145);
 
   /* Typography */
-  --font-primary:
-    "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-primary: "Space Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
 
   /* Spacing */
   --spacing-xs: 0.25rem;
@@ -56,7 +55,7 @@ body {
 header {
   grid-column: 1 / -1;
   height: 3rem;
-  padding: var(--spacing-md);
+  /* padding: var(--spacing-md); */
   background-color: var(--color-bg-dark);
   color: var(--color-text);
   display: flex;
@@ -82,7 +81,7 @@ main {
    Sidebar Styles
    ========================================================================== */
 aside {
-  background-color: var(--color-bg-medium);
+  background-color: var(--color-bg-dark);
   padding: var(--spacing-md);
   display: flex;
   flex-direction: column;
@@ -110,7 +109,7 @@ aside li {
   background-color: var(--color-bg-dark);
   color: var(--color-text);
   border-radius: var(--spacing-sm);
-  border: 2px solid transparent;
+  border: 1px solid antiquewhite;
 }
 
 .cabhead {
@@ -118,6 +117,23 @@ aside li {
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
+  padding-bottom: var(--spacing-md);
+}
+
+.userhead {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--spacing-md);
+}
+
+.cliquehead {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: var(--spacing-md);
 }
 
 /* Cabal List Styles */
@@ -297,7 +313,6 @@ aside li {
   color: rgb(106, 30, 85); /* Or any darker color you prefer */
 }
 
-/* Optional: Add a smooth transition */
 .username {
   transition: color 0.2s ease;
 }
@@ -389,6 +404,37 @@ aside li {
   left: -0.5rem;
   background: var(--color-bg-medium);
   clip-path: polygon(100% 0, 0 100%, 100% 100%);
+}
+
+/* ==========================================================================
+   User Interface
+   ========================================================================== */
+
+.context-menu {
+  position: fixed;
+  background: var(--color-bg-dark);
+  border: 2px solid var(--color-primary);
+  border-radius: var(--spacing-sm);
+  box-shadow: rgb(0, 0, 0) 0px 20px 30px -10px;
+  min-width: 150px;
+  z-index: 1000;
+  display: none;
+}
+
+.context-menu-item {
+  padding: var(--spacing-sm) var(--spacing-md);
+  color: var(--color-text);
+  cursor: pointer;
+  transition: var(--transition-default);
+}
+
+.context-menu-item:hover {
+  background: var(--color-primary);
+}
+
+/* Add a subtle divider between menu items (if we add more later) */
+.context-menu-item:not(:last-child) {
+  border-bottom: 1px solid var(--color-bg-medium);
 }
 
 /* ==========================================================================

@@ -5,6 +5,7 @@ import {
   WebSocketMessage,
   WebSocketWithMetadata,
 } from "../types/WebSocket.ts";
+import { BroadcastManager } from "./BroadcastManager.ts";
 
 export class WebSocketManager implements IWebSocketManager {
   private connectedClients = new Map<string, WebSocketWithMetadata>();
@@ -12,7 +13,8 @@ export class WebSocketManager implements IWebSocketManager {
 
   constructor(
     private readonly onClientDisconnect: (username: string) => void,
-    messageHandlers: Record<string, MessageHandler>
+    messageHandlers: Record<string, MessageHandler>,
+    private readonly broardcastManager: BroadcastManager
   ) {
     // Register message handlers
     Object.entries(messageHandlers).forEach(([event, handler]) => {
@@ -22,7 +24,7 @@ export class WebSocketManager implements IWebSocketManager {
 
   public async handleConnection(ctx: Context): Promise<void> {
     try {
-      const socket = (await ctx.upgrade()) as WebSocketWithMetadata;
+      const socket = ctx.upgrade() as WebSocketWithMetadata;
       const username = ctx.request.url.searchParams.get("username");
 
       if (!username) {
@@ -37,7 +39,6 @@ export class WebSocketManager implements IWebSocketManager {
 
       // Initialize socket metadata
       socket.username = username;
-      socket.currentRoom = "general"; // Default room
 
       // Set up socket event handlers
       this.setupSocketHandlers(socket);
@@ -45,7 +46,7 @@ export class WebSocketManager implements IWebSocketManager {
       // Store the client connection
       this.connectedClients.set(username, socket);
 
-      console.log(`Client connected: ${username}`);
+      console.info(`Client connected: ${username}`);
     } catch (error) {
       console.error("Error in handleConnection:", error);
       throw error;
@@ -77,19 +78,19 @@ export class WebSocketManager implements IWebSocketManager {
 
   private handleSocketOpen(socket: WebSocketWithMetadata): void {
     try {
-      // Additional initialization if needed
       this.broadcast({
         event: "update-users",
         usernames: Array.from(this.connectedClients.keys()),
       });
-      console.log(`Socket opened for ${socket.username}`);
+      this.broardcastManager.broadcastRoomList();
+      console.info(`Socket opened for ${socket.username}`);
     } catch (error) {
       console.error("Error in handleSocketOpen:", error);
     }
   }
 
   public handleClientDisconnect(username: string): void {
-    console.log(`Client disconnecting: ${username}`);
+    console.info(`Client disconnecting: ${username}`);
 
     // Remove from connected clients
     this.connectedClients.delete(username);

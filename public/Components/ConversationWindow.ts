@@ -8,7 +8,7 @@ interface MessageData {
 }
 
 export class ConversationWindow {
-  private cabalName: string;
+  private roomName: string;
   private onClose: (name: string) => void;
   private onActivate: (name: string) => void;
   private socket: WebSocket;
@@ -18,13 +18,13 @@ export class ConversationWindow {
   private unreadCount: number;
 
   constructor(
-    cabalName: string,
+    roomName: string,
     onClose: (name: string) => void,
     onActivate: (name: string) => void,
     socket: WebSocket,
     currentUsername: string
   ) {
-    this.cabalName = cabalName;
+    this.roomName = roomName;
     this.onClose = onClose;
     this.onActivate = onActivate;
     this.socket = socket;
@@ -48,7 +48,7 @@ export class ConversationWindow {
     div.className = "conversation-window";
     div.innerHTML = `
       <div class="window-header">
-        <h3 data-unread="0">${this.cabalName}</h3>
+        <h3 data-unread="0">${this.roomName}</h3>
         <button class="close-btn" aria-label="Close conversation">×</button>
       </div>
       <div class="messages"></div>
@@ -61,7 +61,8 @@ export class ConversationWindow {
       const target = e.target as HTMLElement;
       if (!target.closest(".close-btn")) {
         this.clearUnread();
-        this.onActivate(this.cabalName);
+        this.onActivate(this.roomName);
+        this.addMessageHistory;
       }
     });
 
@@ -69,12 +70,13 @@ export class ConversationWindow {
     if (closeBtn) {
       closeBtn.addEventListener("click", (e: Event) => {
         e.stopPropagation();
-        this.onClose(this.cabalName);
+        this.onClose(this.roomName);
       });
     }
   }
 
   addMessage(messageData: MessageData): void {
+    console.log("in add message");
     const messageDiv = document.createElement("div");
     messageDiv.className = "message";
     messageDiv.dataset.messageId = messageData.id;
@@ -100,7 +102,13 @@ export class ConversationWindow {
 
   addMessageHistory(messages: MessageData[]): void {
     this.clearMessages();
-    messages.forEach((msg) => this.addMessage(msg));
+
+    for (let i = 0; i <= messages.length; i++) {
+      console.log(messages[i].content);
+      this.addMessage(messages[i]);
+    }
+
+    // messages.forEach((msg) => this.addMessage(msg));
   }
 
   saveEdit(messageId: string, newText: string): void {
