@@ -8,9 +8,7 @@ import { KvTools } from "./src/server/utils/kv/store.ts";
 const app = new Application();
 const router = new Router();
 
-const oauthConfig = createGitHubOAuthConfig({
-  redirectUri: "http://localhost:8080/oauth/callback",
-});
+const oauthConfig = createGitHubOAuthConfig();
 const { signIn, signOut, getSessionId } = createHelpers(oauthConfig);
 
 const server = new ChatServer();
