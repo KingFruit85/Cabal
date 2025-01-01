@@ -6,6 +6,7 @@ import {
   WebSocketWithMetadata,
 } from "../types/WebSocket.ts";
 import { BroadcastManager } from "./BroadcastManager.ts";
+import { GitHubUser } from "../types/GitHubUser.ts";
 
 export class WebSocketManager implements IWebSocketManager {
   private connectedClients = new Map<string, WebSocketWithMetadata>();
@@ -22,10 +23,14 @@ export class WebSocketManager implements IWebSocketManager {
     });
   }
 
-  public async handleConnection(ctx: Context): Promise<void> {
+  public async handleConnection(
+    ctx: Context,
+    userDetails: GitHubUser
+  ): Promise<void> {
     try {
+      console.log("Handling connection");
       const socket = ctx.upgrade() as WebSocketWithMetadata;
-      const username = ctx.request.url.searchParams.get("username");
+      const username = userDetails.login;
 
       if (!username) {
         socket.close(1008, "Username is required");

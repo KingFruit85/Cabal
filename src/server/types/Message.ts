@@ -16,9 +16,12 @@ export interface IMessageManager {
   editMessage(
     id: string,
     newContent: string,
-    username: string,
+    username: string
   ): Promise<Message | null>;
-  deleteMessage(id: string, username: string): Promise<boolean>;
+  deleteMessage(
+    id: string,
+    username: string
+  ): Promise<{ success: boolean; message: Message } | false>;
   getRoomHistory(roomName: string, limit?: number): Promise<Message[]>;
 }
 

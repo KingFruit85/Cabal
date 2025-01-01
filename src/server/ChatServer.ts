@@ -14,6 +14,7 @@ import {
   SendMessageData,
 } from "./types/Message.ts";
 import { RoomEvent } from "./types/Room.ts";
+import { GitHubUser } from "./types/GitHubUser.ts";
 
 export default class ChatServer {
   private webSocketManager: WebSocketManager;
@@ -44,8 +45,11 @@ export default class ChatServer {
     );
   }
 
-  public async handleConnection(ctx: Context): Promise<void> {
-    await this.webSocketManager.handleConnection(ctx);
+  public async handleConnection(
+    ctx: Context,
+    userDetails: GitHubUser
+  ): Promise<void> {
+    await this.webSocketManager.handleConnection(ctx, userDetails);
     this.broadcastManager.broadcastRoomList();
   }
 
@@ -64,6 +68,12 @@ export default class ChatServer {
       "leave-room": (socket: WebSocketWithMetadata, data: LeaveRoomData) =>
         this.handleLeaveRoom(socket, data),
       "create-room": (socket: WebSocketWithMetadata, data: CreateRoomData) => {
+        this.handleCreateRoom(socket, data);
+      },
+      "create-private-chat": (
+        socket: WebSocketWithMetadata,
+        data: CreateRoomData
+      ) => {
         this.handleCreateRoom(socket, data);
       },
     };
@@ -123,15 +133,25 @@ export default class ChatServer {
     data: DeleteMessageData
   ) {
     try {
-      const success = await this.messageManager.deleteMessage(
+      const result = await this.messageManager.deleteMessage(
         data.messageId,
         socket.username
       );
-      if (!success) {
+
+      if (!result.success) {
         this.broadcastManager.broadcastError(
           socket.username,
           "Message not found"
         );
+      } else {
+        const history = await this.messageManager.getRoomHistory(
+          result.message.roomName
+        );
+        this.broadcastManager.broadcastToUser(socket.username, {
+          event: "room-history",
+          roomName: result.message.roomName,
+          messages: history,
+        });
       }
     } catch (error) {
       console.error("Error handling delete message:", error);
@@ -147,21 +167,14 @@ export default class ChatServer {
     data: JoinRoomData
   ) {
     try {
-      console.log(`Attempting to join room: ${data.roomName}`);
       const success = await this.roomManager.joinRoom(
         socket.username,
         data.roomName
       );
-      console.log(`Join room success: ${success}`);
 
       if (success) {
         socket.currentRoom = data.roomName;
         const history = await this.messageManager.getRoomHistory(data.roomName);
-        console.log(
-          `Retrieved history for ${data.roomName}:`,
-          history.length,
-          "messages"
-        );
 
         this.broadcastManager.broadcastToUser(socket.username, {
           event: "room-history",
@@ -255,7 +268,7 @@ export default class ChatServer {
         break;
       case "deleted":
         this.broadcastManager.broadcastToRoom(message.roomName, {
-          event: "message-deleted",
+          event: "delete-message",
           messageId: message.id,
         });
         break;

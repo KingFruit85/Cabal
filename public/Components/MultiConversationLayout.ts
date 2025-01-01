@@ -114,8 +114,6 @@ export class MultiConversationLayout {
       return;
     }
 
-    console.log("past addConversation return");
-
     if (this.activeConversations.size >= this.maxConversations) {
       const oldestRoom = this.windowOrder[0];
       this.removeConversation(oldestRoom);
@@ -129,10 +127,8 @@ export class MultiConversationLayout {
       this.socket,
       this.currentUsername
     );
-    console.log(bgGreen(`adding ${roomName} - ${conversationWindow}`));
 
     this.activeConversations.set(roomName, conversationWindow);
-    console.log(JSON.stringify(this.activeConversations));
     this.windowOrder.push(roomName);
     this.container.insertBefore(
       conversationWindow.element,
@@ -150,13 +146,7 @@ export class MultiConversationLayout {
 
   addMessageHistory(roomName: string, messages: any[]): void {
     const conversation = this.activeConversations.get(roomName);
-    console.log("addMessageHistory OUTERLOOP");
-    console.log(JSON.stringify(this.activeConversations));
-    console.log(conversation);
-
     if (conversation) {
-      console.log("addMessageHistory INNERLOOP");
-
       conversation.clearMessages();
       messages.forEach((msg) => conversation.addMessage(msg));
     }
@@ -238,7 +228,12 @@ export class MultiConversationLayout {
     }
   }
 
-  addMessage(roomName: string, username: string, content: string): void {
+  addMessage(
+    roomName: string,
+    username: string,
+    content: string,
+    messageId: string
+  ): void {
     if (!this.activeConversations.has(roomName)) {
       this.addConversation(roomName);
     }
@@ -246,7 +241,7 @@ export class MultiConversationLayout {
     const conversation = this.activeConversations.get(roomName);
     if (conversation) {
       const messageData = {
-        id: crypto.randomUUID(),
+        id: messageId,
         username: username,
         content: content,
         timestamp: Date.now(),

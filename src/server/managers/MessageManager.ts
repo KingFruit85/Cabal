@@ -104,36 +104,40 @@ export class MessageManager implements IMessageManager {
     }
   }
 
-  public async deleteMessage(id: string, username: string): Promise<boolean> {
+  public async deleteMessage(
+    id: string,
+    username: string
+  ): Promise<{ success: boolean; message: Message }> {
     try {
-      const message = await this.getMessage(id);
+      const result = await this.kv.get(["message_by_id", id]);
+      const message = result.value as Message;
 
       if (!message) {
-        return false;
+        return { success: false, message: message };
       }
 
       if (message.username !== username) {
         throw new Error("Not authorized to delete this message");
       }
 
-      const deletedMessage: Message = {
-        ...message,
-        deleted: true,
-      };
-
-      // Update both storage locations
-      await this.kv.set(["message_by_id", id], deletedMessage);
-      await this.kv.set(
-        ["messages", message.roomName, message.timestamp, id],
-        deletedMessage
-      );
+      // Delete both entries
+      await this.kv.delete(["message_by_id", id]);
+      await this.kv.delete([
+        "messages",
+        message.roomName,
+        message.timestamp,
+        message.id,
+      ]);
 
       this.onMessageEvent({
         type: "deleted",
-        message: deletedMessage,
+        message,
       });
 
-      return true;
+      return {
+        success: true,
+        message,
+      };
     } catch (error) {
       console.error("Error deleting message:", error);
       throw error;

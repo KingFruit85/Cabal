@@ -30,7 +30,6 @@ export class RoomManager {
   }
 
   public createRoom(data: CreateRoomData): Room | null {
-    console.log(`Creating ${data.roomType}: ${data.roomName}`);
     if (this.rooms.has(data.roomName)) {
       return null;
     }

@@ -76,7 +76,6 @@ export class ConversationWindow {
   }
 
   addMessage(messageData: MessageData): void {
-    console.log("in add message");
     const messageDiv = document.createElement("div");
     messageDiv.className = "message";
     messageDiv.dataset.messageId = messageData.id;
@@ -85,18 +84,59 @@ export class ConversationWindow {
     const timestamp = new Date(messageData.timestamp);
     timeString = timestamp.toLocaleTimeString();
 
+    // Add controls if the message is from current user
+    const controls = this.isOwnMessage(messageData.username)
+      ? `
+          <button class="delete-btn" aria-label="Delete message">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon">
+              <path d="M3 6h18"/>
+              <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/>
+              <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/>
+            </svg>
+          </button>
+          <button class="edit-btn" aria-label="Edit message">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="icon">
+              <path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/>
+              <path d="m15 5 4 4"/>
+            </svg>
+          </button>
+        `
+      : "";
+
     messageDiv.innerHTML = `
-      <div class="message-header">
+    <div class="message-wrapper">
+      <div class="message-controls">
+        ${controls}
+      </div>
+      <div>
+        <div class="message-header">
         <span class="username">${this.escapeHtml(messageData.username)}</span>
         <span class="timestamp">${timeString}</span>
-        ${messageData.edited ? '<span class="edited">(edited)</span>' : ""}
-      </div>
-      <div class="content">
+        </div>
+        <div class="content">
         ${this.escapeHtml(messageData.content)}
-      </div>
+        </div>
+      </div>  
+    </div>
     `;
 
     this.messageContainer.appendChild(messageDiv);
+
+    if (this.isOwnMessage(messageData.username)) {
+      const editBtn = messageDiv.querySelector(".edit-btn");
+      const deleteBtn = messageDiv.querySelector(".delete-btn");
+
+      editBtn?.addEventListener("click", (e) => {
+        e.stopPropagation(); // Prevent message click event
+        this.handleMessageUpdate(messageData.id, "update");
+      });
+
+      deleteBtn?.addEventListener("click", (e) => {
+        e.stopPropagation(); // Prevent message click event
+        this.deleteMessage(messageData.id);
+      });
+    }
+
     this.scrollToBottom();
   }
 
@@ -104,11 +144,8 @@ export class ConversationWindow {
     this.clearMessages();
 
     for (let i = 0; i <= messages.length; i++) {
-      console.log(messages[i].content);
       this.addMessage(messages[i]);
     }
-
-    // messages.forEach((msg) => this.addMessage(msg));
   }
 
   saveEdit(messageId: string, newText: string): void {
@@ -126,7 +163,7 @@ export class ConversationWindow {
       this.socket.send(
         JSON.stringify({
           event: "delete-message",
-          id: messageId,
+          messageId: messageId,
         })
       );
     }
@@ -153,19 +190,13 @@ export class ConversationWindow {
     }
   }
 
-  handleMessageDelete(id: string): void {
+  handleMessageDelete(messageId: string): void {
     const messageDiv = this.messageContainer.querySelector(
-      `[data-message-id="${id}"]`
+      `[data-message-id="${messageId}"]`
     );
-    if (messageDiv) {
-      const content = messageDiv.querySelector(".content");
-      if (content) {
-        content.textContent = "This message was deleted";
-        content.classList.add("deleted");
 
-        const actions = messageDiv.querySelector(".message-actions");
-        if (actions) actions.remove();
-      }
+    if (messageDiv) {
+      messageDiv.remove();
     }
   }
 

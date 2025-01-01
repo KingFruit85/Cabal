@@ -1,4 +1,5 @@
 import { Context } from "@oak/oak";
+import { GitHubUser } from "./GitHubUser.ts";
 
 export type WebSocketWithMetadata = WebSocket & {
   username: string;
@@ -11,7 +12,7 @@ export type WebSocketMessage = {
 };
 
 export interface IWebSocketManager {
-  handleConnection(ctx: Context): Promise<void>;
+  handleConnection(ctx: Context, userDetails: GitHubUser): Promise<void>;
   handleClientDisconnect(username: string): void;
   handleMessage(socket: WebSocketWithMetadata, message: string): void;
   broadcastToClient(username: string, message: WebSocketMessage): void;
