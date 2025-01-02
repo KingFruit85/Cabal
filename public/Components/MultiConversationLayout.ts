@@ -95,7 +95,7 @@ export class MultiConversationLayout {
     if (!this.activeConversations.has(this.activeConversation)) {
       return;
     }
-
+    console.log(JSON.stringify({ message }));
     console.debug("sending message to ", this.activeConversation);
 
     this.socket.send(
@@ -231,6 +231,7 @@ export class MultiConversationLayout {
   addMessage(
     roomName: string,
     username: string,
+    avatar_url: string,
     content: string,
     messageId: string
   ): void {
@@ -243,6 +244,7 @@ export class MultiConversationLayout {
       const messageData = {
         id: messageId,
         username: username,
+        avatar_url: avatar_url,
         content: content,
         timestamp: Date.now(),
         roomName: roomName,

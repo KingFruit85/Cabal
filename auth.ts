@@ -2,8 +2,10 @@ import { createGitHubOAuthConfig, createHelpers } from "jsr:@deno/kv-oauth";
 import { GitHubUser } from "./src/server/types/GitHubUser.ts";
 import { KvTools } from "./src/server/utils/kv/store.ts";
 import { pick } from "jsr:@std/collections/pick";
+import { Context } from "@oak/oak/context";
 
 const oauthConfig = createGitHubOAuthConfig();
+
 const { handleCallback, getSessionId } = createHelpers(oauthConfig);
 
 export async function getCurrentUser(request: Request): Promise<Response> {

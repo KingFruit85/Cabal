@@ -136,6 +136,24 @@ aside li {
   padding-bottom: var(--spacing-md);
 }
 
+.UserDetails {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  font-size: small;
+  position: absolute;
+  padding-bottom: var(--spacing-md);
+  bottom: 0;
+  width: 100%;
+}
+
+#user-avatar {
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  margin-right: var(--spacing-md);
+}
+
 /* Cabal List Styles */
 #cabals li {
   cursor: pointer;
@@ -286,21 +304,21 @@ aside li {
 .messages {
   flex: 1;
   overflow-y: auto;
-  padding: var(--spacing-md);
   display: flex;
   flex-direction: column;
-  gap: var(--spacing-md);
   background: var(--color-bg-dark);
 }
 
 .message {
-  max-width: 80%;
-  padding: var(--spacing-md);
+  max-width: 95%;
+  /* padding: var(--spacing-md); */
+  padding-top: var(--spacing-md);
+  padding-left: var(--spacing-md);
+  padding-right: var(--spacing-md);
   border-radius: 1rem;
   word-wrap: break-word;
   position: relative;
   margin: var(--spacing-sm) 0;
-  /* box-shadow: 12px 12px 2px 1px var(--color-bg-dark); */
 }
 
 .message-wrapper {
@@ -310,10 +328,19 @@ aside li {
 }
 
 /* When hovering, slide the message content right and show controls */
-.message:hover .message-wrapper {
+/* .message:hover .message-wrapper {
   transform: translateX(
     10px
-  ); /* Adjust this value based on your button widths */
+  );
+} */
+
+#message-user-avatar {
+  width: 35px;
+  height: 35px;
+  border-radius: 50%;
+  margin-right: var(--spacing-md);
+  position: relative;
+  top: 0;
 }
 
 .username {
@@ -344,22 +371,13 @@ aside li {
 
 .message .content {
   padding-top: 5px;
-  padding-left: 5px;
   color: antiquewhite;
 }
 
 .message-controls {
-  position: absolute;
-  left: 0;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
   justify-content: center;
   opacity: 0;
   transition: opacity 0.5s ease-in;
-  transform: translateX(-100%);
-  padding-right: 2px;
-  padding-top: 6px;
 }
 
 .message:hover .message-controls {
@@ -374,20 +392,6 @@ aside li {
   cursor: pointer;
   opacity: 0.7;
   transition: opacity 0.2s ease;
-}
-
-.message-controls button:hover {
-  opacity: 1;
-}
-
-.message-controls .icon {
-  color: var(--color-text);
-  opacity: 0.7;
-  transition: opacity 0.2s ease;
-}
-
-.message-controls button:hover .icon {
-  opacity: 1;
 }
 
 .edit-input {

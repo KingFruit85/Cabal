@@ -1,4 +1,4 @@
-import { Application, Context, Router } from "@oak/oak";
+import { Application, Context, Router, send } from "@oak/oak";
 import ChatServer from "./src/server/ChatServer.ts";
 import { bgGreen } from "jsr:@std/internal@^1.0.5/styles";
 import { createGitHubOAuthConfig, createHelpers } from "@deno/kv-oauth";
@@ -102,7 +102,7 @@ router.get("/start_web_socket", async (ctx: Context) => {
     return;
   }
 
-  await server.handleConnection(ctx, userDetails);
+  await server.handleConnection(ctx, userDetails, sessionId);
 });
 
 // Handle shutdown signals

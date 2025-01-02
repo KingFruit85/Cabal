@@ -2,6 +2,7 @@ import { MultiConversationLayout } from "./Components/MultiConversationLayout.ts
 import { Room } from "../src/server/types/Room.ts";
 import { ContextMenu } from "../src/server/types/Ui.ts";
 import { CreateRoomData } from "../src/server/types/Message.ts";
+import { GitHubUser } from "../src/server/types/GitHubUser.ts";
 
 // Define interfaces for our message types
 interface BaseEvent {
@@ -23,6 +24,7 @@ interface NewMessageEvent extends BaseEvent {
   message: {
     roomName: string;
     username: string;
+    avatar_url: string;
     content: string;
     id: string;
     timestamp: number;
@@ -75,18 +77,34 @@ type ServerEvent =
   | ErrorEvent
   | ExpiredEvent;
 
-function initializeChat(username: string) {
+function initializeChat(userDetails: GitHubUser) {
   // Initialize WebSocket connection
-  const url = new URL(`./start_web_socket?username=${username}`, location.href);
+  console.log(userDetails);
+  const url = new URL(
+    `./start_web_socket?username=${userDetails.login}`,
+    location.href
+  );
   url.protocol = url.protocol.replace("http", "ws");
   const socket = new WebSocket(url.href);
 
   // Create the layout manager
-  const conversationLayout = new MultiConversationLayout(socket, username);
+  const conversationLayout = new MultiConversationLayout(
+    socket,
+    userDetails.login
+  );
   const contextMenu = new ContextMenu();
 
   // Hide context menu when clicking anywhere other than the user list elements
   document.addEventListener("click", () => contextMenu.hide());
+
+  const usernameDisplay = document.getElementById("username-display");
+  if (usernameDisplay) {
+    usernameDisplay.textContent = userDetails.login;
+  }
+  const userAvatar = document.getElementById("user-avatar") as HTMLImageElement;
+  if (userAvatar) {
+    userAvatar.src = userDetails.avatar_url;
+  }
 
   let lastReceivedRoomData: Array<{
     name: string;
@@ -103,6 +121,7 @@ function initializeChat(username: string) {
   };
 
   socket.onmessage = (event: MessageEvent) => {
+    console.log("Received WebSocket message:", event.data);
     const data = JSON.parse(event.data) as ServerEvent;
     switch (data.event) {
       case "update-users":
@@ -118,6 +137,7 @@ function initializeChat(username: string) {
         conversationLayout.addMessage(
           data.message.roomName,
           data.message.username,
+          data.message.avatar_url,
           data.message.content,
           data.message.id
         );
@@ -219,7 +239,7 @@ function initializeChat(username: string) {
 
     for (const cohortName of cohortNames) {
       // if current username skip
-      if (cohortName === username) {
+      if (cohortName === userDetails.login) {
         continue;
       }
       const listItem = document.createElement("li");
@@ -235,7 +255,10 @@ function initializeChat(username: string) {
             {
               label: "Confer",
               action: () => {
-                const roomName = `A colloquy between ${[username, cohortName]
+                const roomName = `A colloquy between ${[
+                  userDetails.login,
+                  cohortName,
+                ]
                   .sort()
                   .join(" and ")}`;
                 // Sort usernames to ensure consistent room names regardless of who initiates
@@ -243,7 +266,7 @@ function initializeChat(username: string) {
                 socket.send(
                   JSON.stringify({
                     event: "create-private-chat",
-                    participants: [username, cohortName],
+                    participants: [userDetails.login, cohortName],
                     roomName: roomName,
                   })
                 );
@@ -270,7 +293,7 @@ function initializeChat(username: string) {
         const data: CreateRoomData = {
           roomName: name,
           roomType: "cabal",
-          initialMembers: [username],
+          initialMembers: [userDetails.login],
         };
         socket.send(
           JSON.stringify({
@@ -284,7 +307,7 @@ function initializeChat(username: string) {
 }
 
 // New auth check and initialization
-async function checkAuth() {
+async function checkAuth(): Promise<GitHubUser | null> {
   try {
     const response = await fetch("/api/auth");
 
@@ -294,7 +317,7 @@ async function checkAuth() {
     }
 
     const userDetails = await response.json();
-    return userDetails.login;
+    return userDetails;
   } catch (error) {
     console.error("Auth check failed:", error);
     globalThis.location.href = "/signin";
@@ -304,9 +327,12 @@ async function checkAuth() {
 
 // Main initialization
 async function init() {
-  const username = await checkAuth();
-  if (username) {
-    await initializeChat(username);
+  const userDetails = await checkAuth();
+  if (!userDetails) {
+    return;
+  }
+  if (userDetails) {
+    await initializeChat(userDetails);
   }
 }
 

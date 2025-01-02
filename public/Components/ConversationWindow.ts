@@ -1,6 +1,7 @@
 interface MessageData {
   id: string;
   username: string;
+  avatar_url: string;
   content: string;
   timestamp: number;
   roomName: string;
@@ -82,6 +83,7 @@ export class ConversationWindow {
 
     let timeString = "Unknown time";
     const timestamp = new Date(messageData.timestamp);
+    const avatarUrl = messageData.avatar_url || "/img/default-avatar.png";
     timeString = timestamp.toLocaleTimeString();
 
     // Add controls if the message is from current user
@@ -105,13 +107,12 @@ export class ConversationWindow {
 
     messageDiv.innerHTML = `
     <div class="message-wrapper">
-      <div class="message-controls">
-        ${controls}
-      </div>
+    <img id="message-user-avatar" src="${avatarUrl}" alt="User Avatar" />
       <div>
         <div class="message-header">
         <span class="username">${this.escapeHtml(messageData.username)}</span>
         <span class="timestamp">${timeString}</span>
+        <span class="message-controls">${controls}</span>
         </div>
         <div class="content">
         ${this.escapeHtml(messageData.content)}

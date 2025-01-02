@@ -4,6 +4,7 @@ export interface Message {
   id: string;
   roomName: string;
   username: string;
+  avatar_url: string;
   content: string;
   timestamp: number;
   edited?: number;

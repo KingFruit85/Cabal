@@ -4,7 +4,7 @@ import { MessageManager } from "./managers/MessageManager.ts";
 import { BroadcastManager } from "./managers/BroadcastManager.ts";
 import { RoomManager } from "./managers/RoomManager.ts";
 import { WebSocketWithMetadata } from "./types/WebSocket.ts";
-import { MessageEvent } from "./types/Message.ts";
+import { Message, MessageEvent } from "./types/Message.ts";
 import {
   CreateRoomData,
   DeleteMessageData,
@@ -15,6 +15,7 @@ import {
 } from "./types/Message.ts";
 import { RoomEvent } from "./types/Room.ts";
 import { GitHubUser } from "./types/GitHubUser.ts";
+import { KvTools } from "./utils/kv/store.ts";
 
 export default class ChatServer {
   private webSocketManager: WebSocketManager;
@@ -47,9 +48,10 @@ export default class ChatServer {
 
   public async handleConnection(
     ctx: Context,
-    userDetails: GitHubUser
+    userDetails: GitHubUser,
+    sessionId: string
   ): Promise<void> {
-    await this.webSocketManager.handleConnection(ctx, userDetails);
+    await this.webSocketManager.handleConnection(ctx, userDetails, sessionId);
     this.broadcastManager.broadcastRoomList();
   }
 
@@ -84,16 +86,23 @@ export default class ChatServer {
     data: SendMessageData
   ) {
     try {
-      const message = {
-        id: crypto.randomUUID(),
-        username: socket.username,
-        content: data.message,
-        roomName: data.roomName,
-        timestamp: Date.now(),
-      };
+      const kvTools = await KvTools.create();
+      const userDetails = await kvTools.getUser(socket.sessionId); // Add sessionId to WebSocketWithMetadata type
 
-      await this.messageManager.storeMessage(message);
-      await this.roomManager.refreshRoomTTL(data.roomName);
+      if (userDetails) {
+        const message = {
+          id: crypto.randomUUID(),
+          username: socket.username,
+          avatar_url: userDetails?.avatar_url,
+          content: data.message,
+          roomName: data.roomName,
+          timestamp: Date.now(),
+        } as Message;
+
+        await this.messageManager.storeMessage(message);
+        await this.roomManager.refreshRoomTTL(data.roomName);
+        return;
+      }
     } catch (error) {
       console.error("Error handling send message:", error);
       this.broadcastManager.broadcastError(

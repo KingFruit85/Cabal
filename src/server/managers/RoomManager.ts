@@ -5,7 +5,7 @@ import { MessageManager } from "./MessageManager.ts";
 
 export class RoomManager {
   private rooms = new Map<string, Room>();
-  private readonly DEFAULT_TTL = minuteInMs; // 1 minute for testing
+  private readonly DEFAULT_TTL = minuteInMs * 4; // 4 minute for testing
   private expirationTimer?: number;
   private messageManager: MessageManager;
   private isInitialized = false;
@@ -44,7 +44,20 @@ export class RoomManager {
     };
 
     this.rooms.set(data.roomName, room);
-
+    console.log(
+      `Room created: ${data.roomName} by user ${data.initialMembers}`
+    );
+    console.log("Rooms:");
+    console.table(
+      Array.from(this.rooms.entries()).map(([name, room]) => ({
+        RoomName: name,
+        Members: Array.from(room.members).join(", "),
+        CreatedAt: new Date(room.createdAt).toLocaleString(),
+        LastActivity: new Date(room.lastActivity).toLocaleString(),
+        TTL: room.ttl,
+        Type: room.type,
+      }))
+    );
     this.onRoomEvent({
       type: "created",
       roomName: data.roomName,

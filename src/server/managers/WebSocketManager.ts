@@ -25,7 +25,8 @@ export class WebSocketManager implements IWebSocketManager {
 
   public async handleConnection(
     ctx: Context,
-    userDetails: GitHubUser
+    userDetails: GitHubUser,
+    sessionId: string
   ): Promise<void> {
     try {
       console.log("Handling connection");
@@ -44,6 +45,7 @@ export class WebSocketManager implements IWebSocketManager {
 
       // Initialize socket metadata
       socket.username = username;
+      socket.sessionId = sessionId;
 
       // Set up socket event handlers
       this.setupSocketHandlers(socket);
