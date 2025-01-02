@@ -110,6 +110,7 @@ function initializeChat(userDetails: GitHubUser) {
     name: string;
     lastActivity: number;
     ttl: number;
+    type: string;
   }> | null = null;
 
   socket.onerror = (error) => {
@@ -184,7 +185,12 @@ function initializeChat(userDetails: GitHubUser) {
   }, 1000);
 
   function updateRoomList(
-    rooms: Array<{ name: string; lastActivity: number; ttl: number }>
+    rooms: Array<{
+      name: string;
+      lastActivity: number;
+      ttl: number;
+      type: string;
+    }>
   ): void {
     const roomList = document.querySelector<HTMLUListElement>("#cabals");
     if (!roomList) return;
@@ -192,6 +198,10 @@ function initializeChat(userDetails: GitHubUser) {
     roomList.replaceChildren();
 
     for (const room of rooms) {
+      console.log(room);
+      if (room.type === "colloquy") {
+        continue;
+      }
       const listItem = document.createElement("li");
       listItem.textContent = `${room.name}`;
 
@@ -245,6 +255,18 @@ function initializeChat(userDetails: GitHubUser) {
       const listItem = document.createElement("li");
       listItem.textContent = cohortName;
 
+      const roomList = document.querySelector<HTMLUListElement>("#cabals");
+      if (!roomList) return;
+
+      listItem.onclick = () => {
+        listItem.style.border = "1px solid #D4AF37";
+        const items = roomList.querySelectorAll("li");
+
+        items.forEach((item) => {
+          item.classList.remove("active");
+        });
+      };
+
       listItem.addEventListener("contextmenu", (event) => {
         event.preventDefault();
 
@@ -268,6 +290,7 @@ function initializeChat(userDetails: GitHubUser) {
                     event: "create-private-chat",
                     participants: [userDetails.login, cohortName],
                     roomName: roomName,
+                    roomType: "colloquy",
                   })
                 );
 
@@ -287,8 +310,8 @@ function initializeChat(userDetails: GitHubUser) {
   const createCabalButton =
     document.querySelector<HTMLButtonElement>("#create-cabal");
   if (createCabalButton) {
-    createCabalButton.onclick = () => {
-      const name = prompt("Enter cabal name:");
+    createCabalButton.onclick = async () => {
+      const name = await showCustomPrompt("Enter cabal name:");
       if (name) {
         const data: CreateRoomData = {
           roomName: name,
@@ -304,6 +327,48 @@ function initializeChat(userDetails: GitHubUser) {
       }
     };
   }
+}
+
+function showCustomPrompt(message: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    const modal = document.getElementById("custom-prompt") as HTMLDivElement;
+    const input = document.getElementById("prompt-input") as HTMLInputElement;
+    const okButton = document.getElementById("prompt-ok") as HTMLButtonElement;
+    const cancelButton = document.getElementById(
+      "prompt-cancel"
+    ) as HTMLButtonElement;
+
+    modal.style.display = "block";
+    input.value = "";
+
+    okButton.onclick = () => {
+      modal.style.display = "none";
+      resolve(input.value);
+    };
+
+    cancelButton.onclick = () => {
+      modal.style.display = "none";
+      resolve(null);
+    };
+
+    globalThis.onclick = (event) => {
+      if (event.target === modal) {
+        modal.style.display = "none";
+        resolve(null);
+      }
+    };
+    input.focus();
+    input.onkeydown = (event) => {
+      if (event.key === "Enter") {
+        modal.style.display = "none";
+        resolve(input.value);
+      }
+      if (event.key === "Escape") {
+        modal.style.display = "none";
+        resolve(null);
+      }
+    };
+  });
 }
 
 // New auth check and initialization

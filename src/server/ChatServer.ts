@@ -219,14 +219,9 @@ export default class ChatServer {
     socket: WebSocketWithMetadata,
     data: CreateRoomData
   ) {
+    console.log("Creating room:", data);
     try {
       const room = await this.roomManager.createRoom(data);
-      if (!room) {
-        this.broadcastManager.broadcastError(
-          socket.username,
-          "room already exists"
-        );
-      }
     } catch (error) {
       console.error("Error handling create room:", error);
       this.broadcastManager.broadcastError(

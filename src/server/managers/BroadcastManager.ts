@@ -54,6 +54,7 @@ export class BroadcastManager implements IBroadcastManager {
       name: room.name,
       lastActivity: room.lastActivity,
       ttl: room.ttl,
+      type: room.type,
     }));
 
     this.broadcastToAll({
